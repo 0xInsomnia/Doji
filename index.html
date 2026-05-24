@@ -546,6 +546,130 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
   text-decoration: underline; cursor: pointer;
   background: none; padding: 0; margin-bottom: 8px;
 }
+
+/* =========================================================
+   DETAIL VIEW (schermata piena trade singolo)
+   ========================================================= */
+.detail-view-wrap { padding-bottom: 80px; }
+.detail-header {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 18px;
+}
+.detail-back {
+  background: transparent; color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 12px; font-size: 12px;
+  font-family: var(--font-mono);
+  letter-spacing: 0.05em;
+}
+.detail-title {
+  font-family: var(--font-display);
+  font-size: 22px; color: var(--text);
+  font-weight: 700; line-height: 1;
+}
+.detail-title-sub {
+  font-family: var(--font-mono);
+  font-size: 10px; color: var(--text-muted);
+  letter-spacing: 0.1em; text-transform: uppercase;
+  margin-top: 4px;
+}
+.detail-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+  margin-bottom: 14px;
+}
+.detail-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 14px 18px;
+}
+.detail-grid-full { grid-column: 1 / -1; }
+.detail-field-label {
+  font-size: 9px; color: var(--text-dim);
+  letter-spacing: 0.1em; text-transform: uppercase;
+  font-family: var(--font-mono);
+  margin-bottom: 4px;
+}
+.detail-field-value {
+  font-size: 15px; color: var(--text);
+  font-family: var(--font-mono); font-weight: 500;
+  line-height: 1.4;
+}
+.detail-field-value.big {
+  font-size: 22px; font-weight: 700;
+}
+.detail-field-value.italic {
+  font-family: var(--font-display);
+  font-style: italic; font-weight: 400;
+  font-size: 16px;
+}
+.detail-note {
+  padding: 12px;
+  background: var(--surface-alt);
+  border-left: 2px solid var(--text);
+  font-style: italic;
+  font-family: var(--font-display);
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text);
+}
+.detail-tags-list {
+  display: flex; flex-wrap: wrap; gap: 5px;
+}
+.detail-tags-list .tag-pill {
+  font-size: 10px; padding: 4px 9px;
+}
+.detail-actions {
+  display: flex; gap: 8px; margin-top: 6px;
+}
+.detail-actions .btn-secondary, .detail-actions .btn-danger {
+  flex: 1; padding: 11px 14px; font-size: 12px;
+  letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600;
+}
+
+/* Modifica marker */
+.modified-marker {
+  color: var(--text-dim);
+  font-size: 10px;
+  margin-left: 4px;
+  font-family: var(--font-mono);
+}
+
+/* Trade row tappabile */
+.trade-row {
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.trade-row:hover, .trade-row:active {
+  border-color: var(--text-dim);
+}
+
+/* Form: indicatore modalità modifica */
+.edit-mode-banner {
+  background: var(--surface-alt);
+  border: 1px solid var(--text);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.edit-mode-banner .label {
+  color: var(--text); font-weight: 700;
+  letter-spacing: 0.05em;
+}
+.edit-mode-banner .cancel-link {
+  color: var(--text-dim);
+  text-decoration: underline;
+  font-size: 11px;
+  background: none;
+  padding: 0;
+}
 </style>
 </head>
 <body data-theme="editorial">
@@ -574,7 +698,11 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
 <div id="log-view">
   <!-- FORM -->
   <div class="panel">
-    <div class="panel-title">Nuovo trade</div>
+    <div class="panel-title" id="form-title">Nuovo trade</div>
+    <div class="edit-mode-banner hidden" id="edit-banner">
+      <span class="label">Modifica trade #<span id="edit-banner-n"></span></span>
+      <button class="cancel-link" id="edit-cancel">Annulla</button>
+    </div>
 
     <div class="field-row">
       <div class="field-col" style="flex: 0; min-width: auto;">
@@ -606,6 +734,11 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
       </div>
     </div>
 
+    <div class="field">
+      <button class="note-toggle" id="risk-amt-toggle">+ specifica $ rischiati su questo trade</button>
+      <input type="number" id="risk-amt" class="input big-num hidden" placeholder="es. 40" step="1" min="0" inputmode="decimal">
+      <div class="hint hidden" id="risk-amt-hint">Usa questo se hai impiegato solo una parte del capitale dell'account su questo trade. Override del calcolo rischio% × capitale.</div>
+    </div>
     <div class="field-row">
       <div class="field-col" style="flex: 0; min-width: auto;">
         <span class="field-label required">TP rispettato *</span>
@@ -654,6 +787,18 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
 <div id="stats-view" class="hidden">
   <div class="filter-bar" id="stats-filters"></div>
   <div id="stats-content"></div>
+</div>
+
+<!-- ================ DETAIL VIEW ================ -->
+<div id="detail-view" class="hidden detail-view-wrap">
+  <div class="detail-header">
+    <button class="detail-back" id="detail-back-btn">← Lista</button>
+    <div>
+      <div class="detail-title" id="detail-title"></div>
+      <div class="detail-title-sub" id="detail-title-sub"></div>
+    </div>
+  </div>
+  <div id="detail-content"></div>
 </div>
 
 <!-- ================ SETTINGS VIEW ================ -->
@@ -841,6 +986,8 @@ const state = {
   view: 'log',
   form: makeEmptyForm(),
   filters: { dateRange: 'all', asset: 'all', setup: 'all', tag: 'all' },
+  editingId: null,
+  detailId: null,
   loading: true,
 };
 
@@ -851,6 +998,7 @@ function makeEmptyForm() {
     setup: '',
     rr_planned: '',
     risk_pct: '',
+    risk_amount: '',
     tp_respected: null,
     sl_respected: null,
     rr_actual: '',
@@ -1027,6 +1175,37 @@ async function addTrade() {
     ? parseFloat(f.rr_planned)
     : parseFloat(f.rr_actual);
 
+  // MODALITÀ MODIFICA
+  if (state.editingId) {
+    const existing = state.trades.find(t => t.id === state.editingId);
+    if (existing) {
+      existing.direction = f.direction;
+      existing.asset = f.asset;
+      existing.setup = f.setup;
+      existing.tp_respected = f.tp_respected;
+      existing.sl_respected = f.sl_respected;
+      existing.rr_planned = parseFloat(f.rr_planned);
+      existing.rr_actual = rr_actual;
+      existing.risk_pct = parseFloat(f.risk_pct) || existing.risk_pct;
+      existing.risk_amount = f.risk_amount === '' ? null : parseFloat(f.risk_amount);
+      existing.tags = [...f.tags];
+      existing.note = f.note.trim();
+      existing.modified = true;
+      try {
+        await dbPut(TRADES_STORE, existing);
+        state.editingId = null;
+        resetForm();
+        showToast('✓ Trade modificato', 'success');
+        render();
+      } catch (e) {
+        showToast('Errore salvataggio', 'error');
+        console.error(e);
+      }
+    }
+    return;
+  }
+
+  // MODALITÀ CREAZIONE
   const acc = currentAccount();
   const tradesInAcc = tradesForCurrentAccount();
 
@@ -1042,8 +1221,10 @@ async function addTrade() {
     rr_planned: parseFloat(f.rr_planned),
     rr_actual: rr_actual,
     risk_pct: parseFloat(f.risk_pct) || acc.risk_pct,
+    risk_amount: f.risk_amount === '' ? null : parseFloat(f.risk_amount),
     tags: [...f.tags],
     note: f.note.trim(),
+    modified: false,
     ts: new Date().toLocaleDateString('it-IT'),
     iso: new Date().toISOString(),
   };
@@ -1058,6 +1239,52 @@ async function addTrade() {
     showToast('Errore salvataggio', 'error');
     console.error(e);
   }
+}
+
+function startEdit(id) {
+  const t = state.trades.find(x => x.id === id);
+  if (!t) return;
+  state.editingId = id;
+  state.form = {
+    direction: t.direction,
+    asset: t.asset,
+    setup: t.setup,
+    rr_planned: String(t.rr_planned),
+    risk_pct: String(t.risk_pct),
+    risk_amount: t.risk_amount != null ? String(t.risk_amount) : '',
+    tp_respected: t.tp_respected,
+    sl_respected: t.sl_respected,
+    rr_actual: String(t.rr_actual),
+    tags: [...(t.tags || [])],
+    note: t.note || '',
+  };
+  // Popola UI
+  document.getElementById('rr-planned').value = state.form.rr_planned;
+  document.getElementById('rr-actual').value = state.form.rr_actual;
+  document.getElementById('risk-pct').value = state.form.risk_pct;
+  document.getElementById('risk-amt').value = state.form.risk_amount;
+  document.getElementById('note').value = state.form.note;
+  if (state.form.risk_amount !== '') {
+    document.getElementById('risk-amt').classList.remove('hidden');
+    document.getElementById('risk-amt-hint').classList.remove('hidden');
+    document.getElementById('risk-amt-toggle').textContent = '− nascondi $ rischiati';
+  }
+  if (state.form.note !== '') {
+    document.getElementById('note').classList.remove('hidden');
+    document.getElementById('note-toggle').textContent = '− nascondi nota libera';
+  }
+  state.view = 'log';
+  render();
+  // Scroll al form
+  setTimeout(() => {
+    document.getElementById('edit-banner').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 100);
+}
+
+function cancelEdit() {
+  state.editingId = null;
+  resetForm();
+  render();
 }
 
 async function deleteTrade(id) {
@@ -1090,6 +1317,10 @@ function resetForm() {
   document.getElementById('rr-planned').value = '';
   document.getElementById('rr-actual').value = '';
   document.getElementById('risk-pct').value = String(acc.risk_pct);
+  document.getElementById('risk-amt').value = '';
+  document.getElementById('risk-amt').classList.add('hidden');
+  document.getElementById('risk-amt-hint').classList.add('hidden');
+  document.getElementById('risk-amt-toggle').textContent = '+ specifica $ rischiati su questo trade';
   document.getElementById('note').value = '';
   document.getElementById('note').classList.add('hidden');
   document.getElementById('note-toggle').textContent = '+ aggiungi nota libera';
@@ -1229,15 +1460,27 @@ function calcStats(arr) {
   // P&L in $
   const acc = currentAccount();
   const pnlDollar = arr.reduce((s, t) => {
+    if (t.risk_amount != null) {
+      // Override esplicito: $ rischiati dichiarati su questo trade
+      return s + (t.rr_actual * t.risk_amount);
+    }
     const risk = (t.risk_pct || acc.risk_pct) / 100;
     return s + (t.rr_actual * risk * acc.capital);
   }, 0);
   const roi = (pnlDollar / acc.capital) * 100;
 
+  // Totale $ effettivamente rischiati (per ROI sul rischiato)
+  const totalRisked = arr.reduce((s, t) => {
+    if (t.risk_amount != null) return s + Math.abs(t.risk_amount);
+    const risk = (t.risk_pct || acc.risk_pct) / 100;
+    return s + (risk * acc.capital);
+  }, 0);
+  const roiRisked = totalRisked > 0 ? (pnlDollar / totalRisked) * 100 : 0;
+
   return {
     total, wins: wins.length, losses: losses.length,
     winRate, avgRRPlanned, avgRRActual, expectancy, profitFactor,
-    tpResp, slResp, pnlDollar, roi, avgWin, avgLoss,
+    tpResp, slResp, pnlDollar, roi, roiRisked, totalRisked, avgWin, avgLoss,
   };
 }
 
@@ -1246,8 +1489,14 @@ function equityCurveData(arr) {
   let eq = acc.capital;
   const points = [{ n: 0, eq }];
   arr.forEach((t, i) => {
-    const risk = (t.risk_pct || acc.risk_pct) / 100;
-    eq = eq + (t.rr_actual * risk * acc.capital);
+    let pnl;
+    if (t.risk_amount != null) {
+      pnl = t.rr_actual * t.risk_amount;
+    } else {
+      const risk = (t.risk_pct || acc.risk_pct) / 100;
+      pnl = t.rr_actual * risk * acc.capital;
+    }
+    eq = eq + pnl;
     points.push({ n: i + 1, eq: parseFloat(eq.toFixed(2)) });
   });
   return points;
@@ -1288,20 +1537,40 @@ function render() {
 
   // View tabs
   document.querySelectorAll('.view-tab').forEach(b => {
-    b.classList.toggle('active', b.dataset.view === state.view && state.view !== 'settings');
+    b.classList.toggle('active', b.dataset.view === state.view && (state.view === 'log' || state.view === 'stats'));
   });
   document.getElementById('settings-btn').classList.toggle('active', state.view === 'settings');
 
-  // Views
+  // Views visibility
   document.getElementById('log-view').classList.toggle('hidden', state.view !== 'log');
   document.getElementById('stats-view').classList.toggle('hidden', state.view !== 'stats');
+  document.getElementById('detail-view').classList.toggle('hidden', state.view !== 'detail');
   document.getElementById('settings-view').classList.toggle('hidden', state.view !== 'settings');
-  document.getElementById('view-tabs').classList.toggle('hidden', state.view === 'settings');
-  document.getElementById('account-tabs').classList.toggle('hidden', state.view === 'settings');
-  document.getElementById('footer-back').style.display = state.view === 'settings' ? 'inline-block' : 'none';
+  document.getElementById('view-tabs').classList.toggle('hidden', state.view === 'settings' || state.view === 'detail');
+  document.getElementById('account-tabs').classList.toggle('hidden', state.view === 'settings' || state.view === 'detail');
+  document.getElementById('footer-back').style.display = (state.view === 'settings') ? 'inline-block' : 'none';
+
+  // Edit banner
+  const editBanner = document.getElementById('edit-banner');
+  const addBtn = document.getElementById('add-btn');
+  const formTitle = document.getElementById('form-title');
+  if (state.editingId) {
+    const t = state.trades.find(x => x.id === state.editingId);
+    if (t) {
+      editBanner.classList.remove('hidden');
+      document.getElementById('edit-banner-n').textContent = t.n;
+      addBtn.textContent = '✓ Salva modifiche';
+      formTitle.textContent = 'Modifica trade';
+    }
+  } else {
+    editBanner.classList.add('hidden');
+    addBtn.textContent = '+ Aggiungi trade';
+    formTitle.textContent = 'Nuovo trade';
+  }
 
   if (state.view === 'log') renderLog();
   else if (state.view === 'stats') renderStats();
+  else if (state.view === 'detail') renderDetail();
   else if (state.view === 'settings') renderSettings();
 }
 
@@ -1388,27 +1657,148 @@ function renderLog() {
   [...arr].reverse().forEach(t => {
     const row = document.createElement('div');
     row.className = 'trade-row';
+    row.setAttribute('data-open', t.id);
     const valCls = t.rr_actual > 0 ? 'val-pos' : t.rr_actual === 0 ? 'val-zero' : 'val-neg';
     const valSign = t.rr_actual > 0 ? '+' : '';
+    const modMarker = t.modified ? '<span class="modified-marker">✱</span>' : '';
     row.innerHTML = `
-      <div class="trade-n">#${t.n}</div>
+      <div class="trade-n">#${t.n}${modMarker}</div>
       <div class="trade-dir ${t.direction}">${t.direction.toUpperCase()}</div>
       <div class="trade-asset">${escapeHtml(t.asset || '—')}</div>
       <div class="trade-setup">${escapeHtml(t.setup || '—')}</div>
       <div class="trade-rr ${valCls}">${valSign}${t.rr_actual}R</div>
       <div class="trade-ts">${t.ts}</div>
-      <button class="trade-del" data-del="${t.id}">×</button>
       ${(t.tags && t.tags.length) ? `<div class="trade-tags">${t.tags.map(tg => `<span class="tag-pill">${escapeHtml(tg)}</span>`).join('')}</div>` : ''}
       ${t.note ? `<div class="trade-note">${escapeHtml(t.note)}</div>` : ''}
     `;
     list.appendChild(row);
   });
-  list.querySelectorAll('[data-del]').forEach(b => {
-    b.onclick = () => {
-      if (confirm('Eliminare questo trade?')) deleteTrade(parseInt(b.dataset.del));
+  list.querySelectorAll('[data-open]').forEach(el => {
+    el.onclick = () => {
+      state.detailId = parseInt(el.dataset.open);
+      state.view = 'detail';
+      render();
     };
   });
 }
+
+function renderDetail() {
+  const t = state.trades.find(x => x.id === state.detailId);
+  if (!t) {
+    state.view = 'log';
+    render();
+    return;
+  }
+  const acc = state.config.accounts.find(a => a.id === t.account_id) || currentAccount();
+  const valCls = t.rr_actual > 0 ? 'val-pos' : t.rr_actual === 0 ? 'val-zero' : 'val-neg';
+  const valSign = t.rr_actual > 0 ? '+' : '';
+
+  // Calcolo P&L $ di questo singolo trade
+  let pnlSingle;
+  if (t.risk_amount != null) {
+    pnlSingle = t.rr_actual * t.risk_amount;
+  } else {
+    const risk = (t.risk_pct || acc.risk_pct) / 100;
+    pnlSingle = t.rr_actual * risk * acc.capital;
+  }
+  const pnlSign = pnlSingle >= 0 ? '+' : '';
+
+  const riskedDisplay = t.risk_amount != null
+    ? `$${t.risk_amount} (override)`
+    : `${(t.risk_pct || acc.risk_pct)}% × $${acc.capital} = $${((t.risk_pct || acc.risk_pct) / 100 * acc.capital).toFixed(0)}`;
+
+  document.getElementById('detail-title').textContent = `Trade #${t.n}${t.modified ? ' ✱' : ''}`;
+  document.getElementById('detail-title-sub').textContent = `${acc.name} · ${t.ts}`;
+
+  const tagsHtml = (t.tags && t.tags.length)
+    ? `<div class="detail-tags-list">${t.tags.map(tg => `<span class="tag-pill">${escapeHtml(tg)}</span>`).join('')}</div>`
+    : '<div class="detail-field-value italic" style="color: var(--text-muted)">nessun tag</div>';
+
+  const noteHtml = t.note
+    ? `<div class="detail-note">${escapeHtml(t.note)}</div>`
+    : '<div class="detail-field-value italic" style="color: var(--text-muted)">nessuna nota</div>';
+
+  document.getElementById('detail-content').innerHTML = `
+    <div class="detail-panel">
+      <div class="detail-grid">
+        <div>
+          <div class="detail-field-label">Direzione</div>
+          <div class="detail-field-value big trade-dir ${t.direction}">${t.direction.toUpperCase()}</div>
+        </div>
+        <div>
+          <div class="detail-field-label">Coppia</div>
+          <div class="detail-field-value big">${escapeHtml(t.asset || '—')}</div>
+        </div>
+        <div class="detail-grid-full">
+          <div class="detail-field-label">Setup</div>
+          <div class="detail-field-value italic">${escapeHtml(t.setup || '—')}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="detail-panel">
+      <div class="detail-grid">
+        <div>
+          <div class="detail-field-label">R/R pianificato</div>
+          <div class="detail-field-value big">${t.rr_planned}R</div>
+        </div>
+        <div>
+          <div class="detail-field-label">R/R reale</div>
+          <div class="detail-field-value big ${valCls}">${valSign}${t.rr_actual}R</div>
+        </div>
+        <div>
+          <div class="detail-field-label">TP rispettato</div>
+          <div class="detail-field-value big">${t.tp_respected ? 'Sì' : 'No'}</div>
+        </div>
+        <div>
+          <div class="detail-field-label">SL rispettato</div>
+          <div class="detail-field-value big">${t.sl_respected ? 'Sì' : 'No'}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="detail-panel">
+      <div class="detail-grid">
+        <div class="detail-grid-full">
+          <div class="detail-field-label">$ rischiati su questo trade</div>
+          <div class="detail-field-value">${riskedDisplay}</div>
+        </div>
+        <div class="detail-grid-full">
+          <div class="detail-field-label">P&amp;L $ di questo trade</div>
+          <div class="detail-field-value big ${valCls}">${pnlSign}$${pnlSingle.toFixed(2)}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="detail-panel">
+      <div class="detail-field-label">Tag esecuzione</div>
+      ${tagsHtml}
+    </div>
+
+    <div class="detail-panel">
+      <div class="detail-field-label">Nota</div>
+      ${noteHtml}
+    </div>
+
+    <div class="detail-actions">
+      <button class="btn-secondary" id="detail-edit-btn">✏ Modifica</button>
+      <button class="btn-danger" id="detail-delete-btn">🗑 Elimina</button>
+    </div>
+  `;
+
+  document.getElementById('detail-edit-btn').onclick = () => {
+    startEdit(t.id);
+  };
+  document.getElementById('detail-delete-btn').onclick = () => {
+    if (confirm('Eliminare questo trade?\n\nL\'azione è irreversibile.')) {
+      const idToDelete = t.id;
+      state.detailId = null;
+      state.view = 'log';
+      deleteTrade(idToDelete);
+    }
+  };
+}
+
 
 function renderStats() {
   // Filtri
@@ -1447,7 +1837,7 @@ function renderStats() {
       <div class="stat-box">
         <div class="stat-label">P&amp;L</div>
         <div class="stat-value ${s.pnlDollar > 0 ? 'val-pos' : s.pnlDollar === 0 ? 'val-zero' : 'val-neg'}">${pnlSign}$${s.pnlDollar.toFixed(0)}</div>
-        <div class="stat-sub">ROI ${roiSign}${s.roi.toFixed(1)}%</div>
+        <div class="stat-sub">ROI account ${roiSign}${s.roi.toFixed(1)}% · ROI rischiato ${s.roiRisked >= 0 ? '+' : ''}${s.roiRisked.toFixed(1)}%</div>
       </div>
       <div class="stat-box">
         <div class="stat-label">R/R Pianif. / Reale</div>
@@ -1870,6 +2260,30 @@ function bindEvents() {
     if (wasHidden) ta.focus();
   };
   document.getElementById('note').oninput = e => { state.form.note = e.target.value; };
+
+  // Risk amount ($)
+  document.getElementById('risk-amt-toggle').onclick = () => {
+    const inp = document.getElementById('risk-amt');
+    const hint = document.getElementById('risk-amt-hint');
+    const wasHidden = inp.classList.contains('hidden');
+    inp.classList.toggle('hidden');
+    hint.classList.toggle('hidden');
+    document.getElementById('risk-amt-toggle').textContent = wasHidden ? '− nascondi $ rischiati' : '+ specifica $ rischiati su questo trade';
+    if (wasHidden) inp.focus();
+  };
+  document.getElementById('risk-amt').oninput = e => { state.form.risk_amount = e.target.value; };
+
+  // Detail back
+  document.getElementById('detail-back-btn').onclick = () => {
+    state.detailId = null;
+    state.view = 'log';
+    render();
+  };
+
+  // Edit cancel
+  document.getElementById('edit-cancel').onclick = () => {
+    cancelEdit();
+  };
 
   // Add trade
   document.getElementById('add-btn').onclick = addTrade;
