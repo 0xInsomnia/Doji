@@ -1,0 +1,2 @@
+# Doji
+Trading journal
