@@ -1,0 +1,1917 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#FAFAF7">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Doji">
+<title>Doji</title>
+<link rel="manifest" href="./manifest.json">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@700;800&family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&family=IBM+Plex+Mono:wght@300;400;500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,600&display=swap" rel="stylesheet">
+<style>
+/* =========================================================
+   CSS VARIABLES (impostate via JS al cambio tema)
+   ========================================================= */
+:root {
+  --bg: #FAFAF7;
+  --surface: #FFFFFF;
+  --surface-alt: #F4F3EE;
+  --border: #000000;
+  --border-subtle: #D8D6D0;
+  --text: #0A0A0A;
+  --text-dim: #6B6960;
+  --text-muted: #A8A59C;
+  --accent: #0A0A0A;
+  --win: #0A0A0A;
+  --loss: transparent;
+  --neutral: #A8A59C;
+  --on-accent: #FAFAF7;
+  --on-win: #FAFAF7;
+  --on-loss: #0A0A0A;
+  --font-main: 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  --font-display: 'Cormorant Garamond', serif;
+  --radius: 2px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-main);
+  min-height: 100vh;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+}
+body {
+  padding: 18px 14px;
+  padding-bottom: 90px;
+  transition: background 0.25s, color 0.25s;
+}
+@supports (padding: max(0px)) {
+  body {
+    padding-top: max(18px, env(safe-area-inset-top));
+    padding-bottom: max(90px, env(safe-area-inset-bottom));
+    padding-left: max(14px, env(safe-area-inset-left));
+    padding-right: max(14px, env(safe-area-inset-right));
+  }
+}
+input, button, textarea, select { font-family: inherit; }
+input, textarea, select { outline: none; -webkit-appearance: none; appearance: none; }
+button { cursor: pointer; user-select: none; -webkit-user-select: none; border: none; background: none; }
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-subtle); }
+
+/* =========================================================
+   HEADER
+   ========================================================= */
+.header {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  margin-bottom: 18px; gap: 12px;
+}
+.brand {
+  font-family: var(--font-display);
+  font-size: 26px; font-weight: 700;
+  color: var(--text); letter-spacing: -0.02em; line-height: 1;
+}
+.brand-accent { color: var(--accent); font-style: italic; }
+.subtitle {
+  color: var(--text-muted);
+  font-size: 10px; letter-spacing: 0.1em; margin-top: 4px;
+  font-family: var(--font-mono); text-transform: uppercase;
+}
+.header-actions { display: flex; gap: 6px; }
+.icon-btn {
+  background: transparent; color: var(--text-dim);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  padding: 7px 11px; font-size: 14px;
+  transition: all 0.15s;
+}
+.icon-btn:hover, .icon-btn:active { border-color: var(--text-dim); color: var(--text); }
+.icon-btn.active { border-color: var(--text); color: var(--text); background: var(--surface-alt); }
+
+/* =========================================================
+   ACCOUNT TABS
+   ========================================================= */
+.account-tabs {
+  display: flex; gap: 4px; margin-bottom: 14px;
+  background: var(--surface-alt); padding: 4px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-subtle);
+}
+.account-tab {
+  flex: 1; padding: 9px 6px;
+  font-size: 11px; font-weight: 500;
+  color: var(--text-dim);
+  border-radius: calc(var(--radius) - 1px);
+  transition: all 0.15s;
+  letter-spacing: 0.03em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.account-tab.active {
+  background: var(--accent); color: var(--on-accent);
+  font-weight: 700;
+}
+
+/* =========================================================
+   VIEW TABS (LOG / STATS)
+   ========================================================= */
+.view-tabs {
+  display: flex; gap: 0; margin-bottom: 16px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.view-tab {
+  padding: 10px 16px;
+  font-size: 11px; font-weight: 500;
+  color: var(--text-muted);
+  letter-spacing: 0.1em; text-transform: uppercase;
+  font-family: var(--font-mono);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: all 0.15s;
+}
+.view-tab.active {
+  color: var(--text); font-weight: 700;
+  border-bottom-color: var(--accent);
+}
+
+/* =========================================================
+   PANELS
+   ========================================================= */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 12px;
+}
+.panel.subtle { border-color: var(--border-subtle); }
+.panel-title {
+  font-size: 10px; color: var(--text-muted);
+  letter-spacing: 0.1em; text-transform: uppercase;
+  font-family: var(--font-mono);
+  margin-bottom: 14px;
+}
+.panel-title.italic {
+  font-family: var(--font-display);
+  font-style: italic; font-size: 14px;
+  text-transform: none; letter-spacing: 0;
+  color: var(--text-dim);
+}
+
+/* =========================================================
+   FORM
+   ========================================================= */
+.field { margin-bottom: 12px; }
+.field-label {
+  display: block;
+  font-size: 9px; color: var(--text-dim);
+  letter-spacing: 0.1em; text-transform: uppercase;
+  font-family: var(--font-mono);
+  margin-bottom: 6px;
+}
+.field-label.required { color: var(--text); font-weight: 600; }
+.field-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.field-col { flex: 1; min-width: 110px; }
+
+.input, .select-native, .textarea {
+  width: 100%;
+  background: var(--surface-alt);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  color: var(--text);
+  padding: 9px 11px;
+  font-size: 13px;
+  font-family: var(--font-mono);
+  transition: border-color 0.15s;
+}
+.input:focus, .select-native:focus, .textarea:focus { border-color: var(--text); }
+.input::placeholder, .textarea::placeholder { color: var(--text-muted); }
+.input.big-num { font-size: 14px; font-weight: 600; }
+.textarea { font-family: var(--font-main); resize: vertical; min-height: 60px; }
+
+.select-native {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M3 4.5l3 3 3-3'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 12px;
+  padding-right: 28px;
+}
+
+/* =========================================================
+   CHIPS (selezione setup, tag, direzione, sì/no)
+   ========================================================= */
+.chip-group { display: flex; gap: 5px; flex-wrap: wrap; }
+.chip {
+  background: transparent;
+  color: var(--text-dim);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  padding: 6px 11px;
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  font-weight: 500;
+  transition: all 0.12s;
+  white-space: nowrap;
+}
+.chip:hover { border-color: var(--text-dim); }
+.chip.active {
+  background: var(--accent); color: var(--on-accent);
+  border-color: var(--accent); font-weight: 700;
+}
+.chip.win.active { background: var(--win); color: var(--on-win); border-color: var(--win); }
+.chip.loss.active { background: var(--loss); color: var(--on-loss); border-color: var(--text); }
+[data-theme="editorial"] .chip.loss.active {
+  background: transparent; color: var(--text);
+  border: 1px solid var(--text);
+}
+
+/* =========================================================
+   BOTTONI PRIMARI
+   ========================================================= */
+.btn-primary {
+  background: var(--accent); color: var(--on-accent);
+  border-radius: var(--radius);
+  padding: 11px 22px;
+  font-size: 12px; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  width: 100%;
+  transition: all 0.15s;
+}
+.btn-primary:hover { opacity: 0.9; }
+.btn-primary.saved { background: var(--win); color: var(--on-win); }
+.btn-secondary {
+  background: transparent; color: var(--text-dim);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  padding: 8px 14px; font-size: 11px;
+  letter-spacing: 0.05em;
+  transition: all 0.15s;
+}
+.btn-secondary:hover { border-color: var(--text-dim); color: var(--text); }
+.btn-danger {
+  background: transparent; color: var(--text);
+  border: 1px solid var(--text);
+  border-radius: var(--radius);
+  padding: 8px 14px; font-size: 11px;
+  letter-spacing: 0.05em;
+}
+
+.btn-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 14px; }
+.toast {
+  padding: 7px 10px; border-radius: var(--radius); font-size: 11px;
+  font-family: var(--font-mono);
+}
+.toast.error { color: var(--text); background: var(--surface-alt); border: 1px solid var(--text); }
+.toast.success { color: var(--text); background: var(--surface-alt); border: 1px solid var(--text-dim); }
+.hint { font-size: 10px; color: var(--text-muted); margin-top: 6px; line-height: 1.5; }
+
+/* =========================================================
+   TRADE LIST
+   ========================================================= */
+.trade-row {
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  padding: 11px 13px;
+  display: flex; align-items: center; gap: 10px;
+  flex-wrap: wrap; margin-bottom: 5px;
+  font-size: 11px;
+}
+.trade-n { color: var(--text-muted); width: 26px; font-family: var(--font-mono); font-size: 10px; }
+.trade-dir {
+  width: 38px; font-size: 10px;
+  letter-spacing: 0.05em; font-family: var(--font-mono);
+  font-weight: 700;
+}
+.trade-asset {
+  color: var(--text); font-weight: 600;
+  font-size: 11px; font-family: var(--font-mono);
+  min-width: 60px;
+}
+.trade-setup { color: var(--text-dim); flex: 1; font-size: 10px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 60px; }
+.trade-rr {
+  font-family: var(--font-mono); font-size: 12px; font-weight: 700;
+  min-width: 50px; text-align: right;
+}
+.trade-ts { color: var(--text-muted); font-size: 9px; font-family: var(--font-mono); }
+.trade-del {
+  color: var(--text-muted); font-size: 18px;
+  padding: 0 4px; line-height: 1;
+}
+.trade-del:hover { color: var(--text); }
+
+.trade-tags {
+  display: flex; gap: 4px; flex-wrap: wrap;
+  width: 100%; margin-top: 6px;
+}
+.tag-pill {
+  font-size: 9px; padding: 2px 7px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+}
+.trade-note {
+  width: 100%; margin-top: 6px; padding-top: 6px;
+  border-top: 1px dashed var(--border-subtle);
+  font-size: 11px; color: var(--text-dim); line-height: 1.4;
+  font-style: italic;
+}
+
+/* =========================================================
+   VALORI POS/NEG (con override per tema mono)
+   ========================================================= */
+.val-pos { color: var(--win); font-weight: 700; }
+.val-neg { color: var(--loss); font-weight: 700; }
+.val-zero { color: var(--neutral); font-weight: 400; }
+
+/* Tema editorial: filled vs outlined */
+[data-theme="editorial"] .val-pos {
+  color: var(--text); font-weight: 800;
+}
+[data-theme="editorial"] .val-neg {
+  color: transparent; -webkit-text-stroke: 1px var(--text);
+  font-weight: 800;
+}
+[data-theme="editorial"] .val-zero {
+  color: var(--text-muted); font-weight: 400;
+}
+[data-theme="editorial"] .trade-dir.long {
+  color: var(--text); font-weight: 800;
+}
+[data-theme="editorial"] .trade-dir.short {
+  color: transparent; -webkit-text-stroke: 1px var(--text);
+  font-weight: 800;
+}
+.trade-dir.long { color: var(--win); }
+.trade-dir.short { color: var(--loss); }
+
+/* =========================================================
+   STATS
+   ========================================================= */
+.stat-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+  margin-bottom: 14px;
+}
+.stat-box {
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  padding: 13px;
+}
+.stat-label {
+  font-size: 9px; color: var(--text-dim);
+  letter-spacing: 0.08em; text-transform: uppercase;
+  font-family: var(--font-mono); margin-bottom: 7px;
+}
+.stat-value {
+  font-size: 22px; font-weight: 700;
+  font-family: var(--font-mono); line-height: 1;
+}
+.stat-sub { font-size: 10px; color: var(--text-muted); margin-top: 5px; font-family: var(--font-mono); }
+
+/* Filtri stats */
+.filter-bar {
+  display: flex; gap: 8px; flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.filter-select {
+  background: var(--surface-alt);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  color: var(--text);
+  padding: 7px 26px 7px 10px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  flex: 1; min-width: 110px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M3 4.5l3 3 3-3'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 11px;
+}
+
+/* Breakdown table */
+.breakdown-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 0; border-bottom: 1px solid var(--border-subtle);
+  font-size: 11px;
+}
+.breakdown-row:last-child { border-bottom: none; }
+.breakdown-label { color: var(--text); font-family: var(--font-mono); font-weight: 500; }
+.breakdown-stats { color: var(--text-dim); font-family: var(--font-mono); font-size: 10px; }
+.breakdown-value {
+  font-family: var(--font-mono); font-weight: 700; font-size: 13px;
+  min-width: 60px; text-align: right;
+}
+
+/* Insight */
+.insight-item {
+  padding: 9px 12px;
+  margin-bottom: 6px;
+  background: var(--surface-alt);
+  border-left: 2px solid var(--text);
+  font-size: 12px; color: var(--text); line-height: 1.6;
+}
+.insight-item.positive { border-left-style: dashed; color: var(--text-dim); }
+
+/* =========================================================
+   SETTINGS
+   ========================================================= */
+.settings-section { margin-bottom: 22px; }
+.settings-heading {
+  font-family: var(--font-display); font-style: italic;
+  font-size: 18px; color: var(--text);
+  margin-bottom: 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.account-card {
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  padding: 14px;
+  margin-bottom: 8px;
+}
+.account-card-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 10px;
+}
+.account-card-name {
+  font-weight: 700; color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px; letter-spacing: 0.05em;
+}
+
+.list-editor {
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  padding: 12px;
+}
+.list-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 7px 0;
+  font-size: 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.list-item:last-child { border-bottom: none; }
+.list-item-name { color: var(--text); font-family: var(--font-mono); }
+.list-add-row {
+  display: flex; gap: 6px; margin-top: 10px;
+  padding-top: 10px; border-top: 1px solid var(--border);
+}
+.list-add-input {
+  flex: 1; background: var(--surface-alt);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  color: var(--text); padding: 6px 9px;
+  font-size: 11px; font-family: var(--font-mono);
+}
+.list-add-btn {
+  background: var(--accent); color: var(--on-accent);
+  border-radius: var(--radius);
+  padding: 6px 12px;
+  font-size: 11px; font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+/* Tema selector in settings */
+.theme-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+}
+.theme-option {
+  padding: 12px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  background: var(--surface);
+  text-align: left;
+  transition: all 0.15s;
+}
+.theme-option.active { border-color: var(--text); border-width: 2px; padding: 11px 9px; }
+.theme-option-name {
+  font-weight: 700; color: var(--text);
+  font-size: 12px; margin-bottom: 4px;
+  font-family: var(--font-mono); letter-spacing: 0.03em;
+}
+.theme-option-desc {
+  font-size: 10px; color: var(--text-muted); line-height: 1.4;
+}
+.theme-swatch {
+  display: flex; gap: 3px; margin-top: 8px;
+}
+.theme-swatch span {
+  width: 14px; height: 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 50%;
+}
+
+/* =========================================================
+   FOOTER ACTIONS
+   ========================================================= */
+.footer-actions {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+  padding: 12px 16px;
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+  display: flex; gap: 8px; justify-content: center;
+  z-index: 10;
+}
+
+/* =========================================================
+   MISC
+   ========================================================= */
+.hidden { display: none !important; }
+.empty {
+  color: var(--text-muted); font-size: 13px;
+  text-align: center; padding: 40px 0;
+  font-style: italic;
+  font-family: var(--font-display);
+}
+.spacer { height: 8px; }
+.divider { height: 1px; background: var(--border-subtle); margin: 14px 0; }
+
+/* Collapsible note */
+.note-toggle {
+  font-size: 10px; color: var(--text-dim);
+  text-decoration: underline; cursor: pointer;
+  background: none; padding: 0; margin-bottom: 8px;
+}
+</style>
+</head>
+<body data-theme="editorial">
+
+<!-- HEADER -->
+<div class="header">
+  <div>
+    <div class="brand">Do<span class="brand-accent">ji</span></div>
+    <div class="subtitle" id="subtitle">CARICAMENTO…</div>
+  </div>
+  <div class="header-actions">
+    <button class="icon-btn" id="settings-btn" title="Impostazioni">⚙</button>
+  </div>
+</div>
+
+<!-- ACCOUNT TABS -->
+<div class="account-tabs" id="account-tabs"></div>
+
+<!-- VIEW TABS -->
+<div class="view-tabs" id="view-tabs">
+  <button class="view-tab active" data-view="log">Log</button>
+  <button class="view-tab" data-view="stats">Stats</button>
+</div>
+
+<!-- ================ LOG VIEW ================ -->
+<div id="log-view">
+  <!-- FORM -->
+  <div class="panel">
+    <div class="panel-title">Nuovo trade</div>
+
+    <div class="field-row">
+      <div class="field-col" style="flex: 0; min-width: auto;">
+        <span class="field-label">Direzione</span>
+        <div class="chip-group">
+          <button class="chip win" id="dir-long">LONG</button>
+          <button class="chip loss" id="dir-short">SHORT</button>
+        </div>
+      </div>
+      <div class="field-col">
+        <span class="field-label">Coppia</span>
+        <select class="select-native" id="asset"></select>
+      </div>
+    </div>
+
+    <div class="field">
+      <span class="field-label">Setup</span>
+      <div class="chip-group" id="setup-chips"></div>
+    </div>
+
+    <div class="field-row">
+      <div class="field-col">
+        <span class="field-label required">R/R pianificato *</span>
+        <input type="number" id="rr-planned" class="input big-num" placeholder="1.5" step="0.1" min="0" inputmode="decimal">
+      </div>
+      <div class="field-col">
+        <span class="field-label">Rischio %</span>
+        <input type="number" id="risk-pct" class="input big-num" placeholder="1.0" step="0.1" min="0" inputmode="decimal">
+      </div>
+    </div>
+
+    <div class="field-row">
+      <div class="field-col" style="flex: 0; min-width: auto;">
+        <span class="field-label required">TP rispettato *</span>
+        <div class="chip-group">
+          <button class="chip win" id="tp-yes">SÌ</button>
+          <button class="chip loss" id="tp-no">NO</button>
+        </div>
+      </div>
+      <div class="field-col" style="flex: 0; min-width: auto;">
+        <span class="field-label required">SL rispettato *</span>
+        <div class="chip-group">
+          <button class="chip win" id="sl-yes">SÌ</button>
+          <button class="chip loss" id="sl-no">NO</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="field hidden" id="rr-actual-wrap">
+      <span class="field-label required">R/R reale *</span>
+      <input type="number" id="rr-actual" class="input big-num" placeholder="es. 0.5 / 0 / -1" step="0.1" inputmode="decimal">
+      <div class="hint">+ gain anticipato · 0 BE · -1 SL pieno · valori negativi se oltre SL</div>
+    </div>
+
+    <div class="field">
+      <span class="field-label">Tag esecuzione</span>
+      <div class="chip-group" id="tag-chips"></div>
+    </div>
+
+    <div class="field">
+      <button class="note-toggle" id="note-toggle">+ aggiungi nota libera</button>
+      <textarea class="textarea hidden" id="note" placeholder="Note specifiche su questo trade..."></textarea>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn-primary" id="add-btn">+ Aggiungi trade</button>
+      <div id="toast"></div>
+    </div>
+  </div>
+
+  <!-- LISTA TRADE -->
+  <div class="panel-title" style="margin-top: 18px; margin-bottom: 8px; padding: 0 4px;">Ultimi trade</div>
+  <div id="trades-list"></div>
+</div>
+
+<!-- ================ STATS VIEW ================ -->
+<div id="stats-view" class="hidden">
+  <div class="filter-bar" id="stats-filters"></div>
+  <div id="stats-content"></div>
+</div>
+
+<!-- ================ SETTINGS VIEW ================ -->
+<div id="settings-view" class="hidden">
+
+  <div class="settings-section">
+    <div class="settings-heading">Account</div>
+    <div id="accounts-editor"></div>
+  </div>
+
+  <div class="settings-section">
+    <div class="settings-heading">Coppie / Asset</div>
+    <div class="list-editor" id="assets-editor"></div>
+  </div>
+
+  <div class="settings-section">
+    <div class="settings-heading">Setup</div>
+    <div class="list-editor" id="setups-editor"></div>
+  </div>
+
+  <div class="settings-section">
+    <div class="settings-heading">Tag esecuzione</div>
+    <div class="list-editor" id="tags-editor"></div>
+  </div>
+
+  <div class="settings-section">
+    <div class="settings-heading">Tema</div>
+    <div class="theme-grid" id="theme-grid"></div>
+  </div>
+
+  <div class="settings-section">
+    <div class="settings-heading">Backup &amp; Reset</div>
+    <div class="panel subtle">
+      <p style="font-size: 12px; color: var(--text-dim); line-height: 1.6; margin-bottom: 12px;">
+        Esporta periodicamente i tuoi dati in un file JSON che puoi conservare ovunque (Drive, Dropbox, mail). I dati sono salvati nel telefono — se il telefono si rompe o resetta, hai bisogno del backup.
+      </p>
+      <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+        <button class="btn-secondary" id="export-btn">📥 Esporta JSON</button>
+        <button class="btn-secondary" id="import-btn">📤 Importa JSON</button>
+        <button class="btn-danger" id="reset-btn">⚠ Reset totale</button>
+      </div>
+      <input type="file" id="import-file" accept=".json,application/json" style="display: none;">
+    </div>
+  </div>
+
+</div>
+
+<!-- FOOTER ACTIONS -->
+<div class="footer-actions" id="footer-actions">
+  <button class="btn-secondary" id="footer-back" style="display: none;">← Torna</button>
+</div>
+
+<script>
+'use strict';
+
+// ============================================================
+//  TEMI
+// ============================================================
+const themes = {
+  editorial: {
+    name: 'Editorial Mono',
+    desc: 'Bianco etereo, nero inchiostro, filled vs outlined',
+    bg:'#FAFAF7', surface:'#FFFFFF', surfaceAlt:'#F4F3EE',
+    border:'#000000', borderSubtle:'#D8D6D0',
+    text:'#0A0A0A', textDim:'#6B6960', textMuted:'#A8A59C',
+    accent:'#0A0A0A', win:'#0A0A0A', loss:'transparent', neutral:'#A8A59C',
+    onAccent:'#FAFAF7', onWin:'#FAFAF7', onLoss:'#0A0A0A',
+    fontMain:"'Inter', sans-serif",
+    fontMono:"'JetBrains Mono', monospace",
+    fontDisplay:"'Cormorant Garamond', serif",
+    radius:'2px',
+    themeColor:'#FAFAF7',
+  },
+  tradingview: {
+    name: 'TradingView',
+    desc: 'Dark grigio-blu, Inter, accenti funzionali',
+    bg:'#131722', surface:'#1E222D', surfaceAlt:'#1A1E27',
+    border:'#2A2E39', borderSubtle:'#22262F',
+    text:'#D1D4DC', textDim:'#787B86', textMuted:'#4A4E58',
+    accent:'#2962FF', win:'#26A69A', loss:'#EF5350', neutral:'#787B86',
+    onAccent:'#FFFFFF', onWin:'#FFFFFF', onLoss:'#FFFFFF',
+    fontMain:"'Inter', sans-serif",
+    fontMono:"'JetBrains Mono', monospace",
+    fontDisplay:"'Inter', sans-serif",
+    radius:'4px',
+    themeColor:'#131722',
+  },
+  blackmono: {
+    name: 'Pure Black',
+    desc: 'Nero assoluto, monospace tecnico',
+    bg:'#000000', surface:'#0A0A0A', surfaceAlt:'#080808',
+    border:'#1A1A1A', borderSubtle:'#111111',
+    text:'#FFFFFF', textDim:'#888888', textMuted:'#444444',
+    accent:'#FFFFFF', win:'#00FF88', loss:'#FF3355', neutral:'#666666',
+    onAccent:'#000000', onWin:'#000000', onLoss:'#FFFFFF',
+    fontMain:"'IBM Plex Mono', monospace",
+    fontMono:"'IBM Plex Mono', monospace",
+    fontDisplay:"'IBM Plex Mono', monospace",
+    radius:'0px',
+    themeColor:'#000000',
+  },
+  dashboard: {
+    name: 'Dashboard Rich',
+    desc: 'Più colore, accenti vivaci',
+    bg:'#0F1419', surface:'#1A1F2E', surfaceAlt:'#151A26',
+    border:'#252B3D', borderSubtle:'#1E2333',
+    text:'#E4E8F0', textDim:'#8A92A6', textMuted:'#4A5066',
+    accent:'#7C5CFF', win:'#00D9A0', loss:'#FF5577', neutral:'#FFB547',
+    onAccent:'#FFFFFF', onWin:'#000000', onLoss:'#FFFFFF',
+    fontMain:"'Plus Jakarta Sans', sans-serif",
+    fontMono:"'JetBrains Mono', monospace",
+    fontDisplay:"'Plus Jakarta Sans', sans-serif",
+    radius:'10px',
+    themeColor:'#0F1419',
+  },
+  current: {
+    name: 'Amber (Original)',
+    desc: 'DM Mono + Syne + accento ambra',
+    bg:'#0A0A0A', surface:'#111111', surfaceAlt:'#0E0E0E',
+    border:'#1A1A1A', borderSubtle:'#151515',
+    text:'#CCCCCC', textDim:'#555555', textMuted:'#333333',
+    accent:'#FFB800', win:'#00FF88', loss:'#FF4466', neutral:'#888888',
+    onAccent:'#000000', onWin:'#000000', onLoss:'#FFFFFF',
+    fontMain:"'DM Mono', monospace",
+    fontMono:"'DM Mono', monospace",
+    fontDisplay:"'Syne', sans-serif",
+    radius:'6px',
+    themeColor:'#0A0A0A',
+  },
+};
+
+function applyTheme(name) {
+  const t = themes[name] || themes.editorial;
+  const root = document.documentElement;
+  root.style.setProperty('--bg', t.bg);
+  root.style.setProperty('--surface', t.surface);
+  root.style.setProperty('--surface-alt', t.surfaceAlt);
+  root.style.setProperty('--border', t.border);
+  root.style.setProperty('--border-subtle', t.borderSubtle);
+  root.style.setProperty('--text', t.text);
+  root.style.setProperty('--text-dim', t.textDim);
+  root.style.setProperty('--text-muted', t.textMuted);
+  root.style.setProperty('--accent', t.accent);
+  root.style.setProperty('--win', t.win);
+  root.style.setProperty('--loss', t.loss);
+  root.style.setProperty('--neutral', t.neutral);
+  root.style.setProperty('--on-accent', t.onAccent);
+  root.style.setProperty('--on-win', t.onWin);
+  root.style.setProperty('--on-loss', t.onLoss);
+  root.style.setProperty('--font-main', t.fontMain);
+  root.style.setProperty('--font-mono', t.fontMono);
+  root.style.setProperty('--font-display', t.fontDisplay);
+  root.style.setProperty('--radius', t.radius);
+  document.body.setAttribute('data-theme', name);
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', t.themeColor);
+}
+
+// ============================================================
+//  STATE & DEFAULTS
+// ============================================================
+const DEFAULT_CONFIG = {
+  accounts: [
+    { id: 'acc1', name: 'Principale', capital: 5000, risk_pct: 1.0 },
+    { id: 'acc2', name: 'Speculativo', capital: 2000, risk_pct: 2.0 },
+    { id: 'acc3', name: 'Ultra', capital: 500, risk_pct: 3.0 },
+  ],
+  assets: ['BTC/USDT','ETH/USDT','SOL/USDT','XTZ/USDT','CRV/USDT'],
+  setups: [
+    'BOS','EMA retest','Liquidity grab','FVG','Order block',
+    'Pullback','Inversione confermata','News / catalyst',
+  ],
+  tags: [
+    'Piano rispettato','Chiuso in anticipo','Spostato SL',
+    'FOMO','Esitazione ingresso','Revenge trading',
+    'Overtraded','Alta convinzione',
+  ],
+  theme: 'editorial',
+  current_account_id: 'acc1',
+};
+
+const state = {
+  trades: [],
+  config: { ...DEFAULT_CONFIG },
+  view: 'log',
+  form: makeEmptyForm(),
+  filters: { dateRange: 'all', asset: 'all', setup: 'all', tag: 'all' },
+  loading: true,
+};
+
+function makeEmptyForm() {
+  return {
+    direction: 'long',
+    asset: '',
+    setup: '',
+    rr_planned: '',
+    risk_pct: '',
+    tp_respected: null,
+    sl_respected: null,
+    rr_actual: '',
+    tags: [],
+    note: '',
+  };
+}
+
+// ============================================================
+//  INDEXEDDB
+// ============================================================
+const DB_NAME = 'tradelog';
+const DB_VERSION = 2;
+const TRADES_STORE = 'trades';
+const CONFIG_STORE = 'config';
+
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      const tx = e.target.transaction;
+      if (!db.objectStoreNames.contains(TRADES_STORE)) {
+        db.createObjectStore(TRADES_STORE, { keyPath: 'id' });
+      }
+      if (!db.objectStoreNames.contains(CONFIG_STORE)) {
+        db.createObjectStore(CONFIG_STORE, { keyPath: 'key' });
+      }
+      // Migrazione v1 -> v2: aggiungi account_id e tags ai trade esistenti
+      if (e.oldVersion < 2 && db.objectStoreNames.contains(TRADES_STORE)) {
+        const store = tx.objectStore(TRADES_STORE);
+        const getReq = store.getAll();
+        getReq.onsuccess = () => {
+          getReq.result.forEach(t => {
+            let needsUpdate = false;
+            if (!t.account_id) { t.account_id = 'acc1'; needsUpdate = true; }
+            if (!Array.isArray(t.tags)) { t.tags = []; needsUpdate = true; }
+            if (t.risk_pct == null) { t.risk_pct = 1.0; needsUpdate = true; }
+            if (needsUpdate) store.put(t);
+          });
+        };
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function dbGetAll(storeName) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, 'readonly');
+    const req = tx.objectStore(storeName).getAll();
+    req.onsuccess = () => resolve(req.result || []);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function dbPut(storeName, value) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, 'readwrite');
+    tx.objectStore(storeName).put(value);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function dbDelete(storeName, id) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, 'readwrite');
+    tx.objectStore(storeName).delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function dbClear(storeName) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, 'readwrite');
+    tx.objectStore(storeName).clear();
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function dbBulkPut(storeName, values) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, 'readwrite');
+    const store = tx.objectStore(storeName);
+    values.forEach(v => store.put(v));
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function saveConfig() {
+  await dbPut(CONFIG_STORE, { key: 'main', value: JSON.stringify(state.config) });
+}
+
+async function loadConfig() {
+  try {
+    const items = await dbGetAll(CONFIG_STORE);
+    const main = items.find(i => i.key === 'main');
+    if (main && main.value) {
+      const parsed = JSON.parse(main.value);
+      state.config = { ...DEFAULT_CONFIG, ...parsed };
+      // Garantisci che ogni campo esista
+      if (!Array.isArray(state.config.accounts) || state.config.accounts.length === 0) {
+        state.config.accounts = DEFAULT_CONFIG.accounts;
+      }
+      if (!Array.isArray(state.config.assets)) state.config.assets = DEFAULT_CONFIG.assets;
+      if (!Array.isArray(state.config.setups)) state.config.setups = DEFAULT_CONFIG.setups;
+      if (!Array.isArray(state.config.tags)) state.config.tags = DEFAULT_CONFIG.tags;
+    } else {
+      state.config = { ...DEFAULT_CONFIG };
+      await saveConfig();
+    }
+  } catch (e) {
+    console.error('loadConfig error', e);
+    state.config = { ...DEFAULT_CONFIG };
+  }
+}
+
+// ============================================================
+//  INIT
+// ============================================================
+async function init() {
+  await loadConfig();
+  applyTheme(state.config.theme || 'editorial');
+  try {
+    state.trades = await dbGetAll(TRADES_STORE);
+    state.trades.sort((a, b) => a.n - b.n);
+  } catch (e) {
+    console.error('load trades', e);
+  }
+  state.loading = false;
+  // Defaults form
+  state.form.asset = state.config.assets[0] || '';
+  const acc = currentAccount();
+  state.form.risk_pct = String(acc.risk_pct);
+  bindEvents();
+  render();
+}
+
+function currentAccount() {
+  return state.config.accounts.find(a => a.id === state.config.current_account_id) || state.config.accounts[0];
+}
+
+function tradesForCurrentAccount() {
+  return state.trades.filter(t => t.account_id === state.config.current_account_id);
+}
+
+// ============================================================
+//  ACTIONS
+// ============================================================
+async function addTrade() {
+  const f = state.form;
+  const missing = [];
+  if (!f.rr_planned) missing.push('R/R pianificato');
+  if (f.tp_respected === null) missing.push('TP rispettato');
+  if (f.sl_respected === null) missing.push('SL rispettato');
+  if (f.tp_respected === false && f.rr_actual === '') missing.push('R/R reale');
+
+  if (missing.length > 0) {
+    showToast('Compila: ' + missing.join(', '), 'error');
+    return;
+  }
+
+  const rr_actual = f.tp_respected
+    ? parseFloat(f.rr_planned)
+    : parseFloat(f.rr_actual);
+
+  const acc = currentAccount();
+  const tradesInAcc = tradesForCurrentAccount();
+
+  const trade = {
+    id: Date.now(),
+    n: tradesInAcc.length + 1,
+    account_id: acc.id,
+    direction: f.direction,
+    asset: f.asset,
+    setup: f.setup,
+    tp_respected: f.tp_respected,
+    sl_respected: f.sl_respected,
+    rr_planned: parseFloat(f.rr_planned),
+    rr_actual: rr_actual,
+    risk_pct: parseFloat(f.risk_pct) || acc.risk_pct,
+    tags: [...f.tags],
+    note: f.note.trim(),
+    ts: new Date().toLocaleDateString('it-IT'),
+    iso: new Date().toISOString(),
+  };
+
+  try {
+    await dbPut(TRADES_STORE, trade);
+    state.trades.push(trade);
+    resetForm();
+    showToast('✓ Trade salvato', 'success');
+    render();
+  } catch (e) {
+    showToast('Errore salvataggio', 'error');
+    console.error(e);
+  }
+}
+
+async function deleteTrade(id) {
+  try {
+    await dbDelete(TRADES_STORE, id);
+    state.trades = state.trades.filter(t => t.id !== id);
+    // Rinumera i trade dell'account a cui apparteneva
+    const groups = {};
+    state.trades.forEach(t => {
+      groups[t.account_id] = groups[t.account_id] || [];
+      groups[t.account_id].push(t);
+    });
+    Object.values(groups).forEach(arr => {
+      arr.sort((a, b) => a.iso.localeCompare(b.iso));
+      arr.forEach((t, i) => { t.n = i + 1; });
+    });
+    await dbBulkPut(TRADES_STORE, state.trades);
+    render();
+  } catch (e) {
+    showToast('Errore eliminazione', 'error');
+    console.error(e);
+  }
+}
+
+function resetForm() {
+  const acc = currentAccount();
+  state.form = makeEmptyForm();
+  state.form.asset = state.config.assets[0] || '';
+  state.form.risk_pct = String(acc.risk_pct);
+  document.getElementById('rr-planned').value = '';
+  document.getElementById('rr-actual').value = '';
+  document.getElementById('risk-pct').value = String(acc.risk_pct);
+  document.getElementById('note').value = '';
+  document.getElementById('note').classList.add('hidden');
+  document.getElementById('note-toggle').textContent = '+ aggiungi nota libera';
+}
+
+function showToast(msg, type) {
+  const el = document.getElementById('toast');
+  el.className = 'toast ' + (type || 'success');
+  el.textContent = (type === 'error' ? '⚠ ' : '') + msg;
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => { el.className = ''; el.textContent = ''; }, 3500);
+}
+
+// ============================================================
+//  EXPORT / IMPORT / RESET
+// ============================================================
+function exportData() {
+  if (state.trades.length === 0 && Object.keys(state.config).length === 0) {
+    showToast('Nessun dato da esportare', 'error');
+    return;
+  }
+  const data = {
+    version: 2, app: 'tradelog',
+    exported_at: new Date().toISOString(),
+    config: state.config,
+    trades: state.trades,
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const date = new Date().toISOString().slice(0, 10);
+  a.href = url; a.download = `tradelog-backup-${date}.json`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast(`✓ ${state.trades.length} trade esportati`, 'success');
+}
+
+function importData(file) {
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!data.trades || !Array.isArray(data.trades)) {
+        showToast('File non valido', 'error');
+        return;
+      }
+      const ok = confirm(
+        `Importare ${data.trades.length} trade?\n\n` +
+        `ATTENZIONE: sostituisce TUTTI i trade attuali (${state.trades.length}) e le configurazioni.\n\n` +
+        `OK per confermare, Annulla per uscire.`
+      );
+      if (!ok) return;
+      await dbClear(TRADES_STORE);
+      const sorted = [...data.trades].sort((a, b) => (a.iso || '').localeCompare(b.iso || ''));
+      // Rinumera per account
+      const groups = {};
+      sorted.forEach(t => {
+        const aid = t.account_id || 'acc1';
+        t.account_id = aid;
+        groups[aid] = groups[aid] || [];
+        groups[aid].push(t);
+      });
+      Object.values(groups).forEach(arr => {
+        arr.forEach((t, i) => { t.n = i + 1; });
+      });
+      await dbBulkPut(TRADES_STORE, sorted);
+      state.trades = sorted;
+      if (data.config) {
+        state.config = { ...DEFAULT_CONFIG, ...data.config };
+        await saveConfig();
+        applyTheme(state.config.theme || 'editorial');
+      }
+      showToast(`✓ Importati ${sorted.length} trade`, 'success');
+      render();
+    } catch (err) {
+      showToast('Errore lettura file', 'error');
+      console.error(err);
+    }
+  };
+  reader.readAsText(file);
+}
+
+async function resetAll() {
+  const sure = confirm('CANCELLARE TUTTO (trade e impostazioni)?\n\nQuesta azione è irreversibile. Esporta prima un backup se vuoi conservare i dati.');
+  if (!sure) return;
+  const reallysure = confirm('Ultima conferma: vuoi davvero cancellare tutto?');
+  if (!reallysure) return;
+  await dbClear(TRADES_STORE);
+  await dbClear(CONFIG_STORE);
+  state.trades = [];
+  state.config = { ...DEFAULT_CONFIG };
+  await saveConfig();
+  applyTheme(state.config.theme);
+  showToast('✓ Reset completato', 'success');
+  state.view = 'log';
+  render();
+}
+
+// ============================================================
+//  STATS CALCULATION
+// ============================================================
+function filteredTrades() {
+  let arr = tradesForCurrentAccount();
+  const f = state.filters;
+  if (f.asset !== 'all') arr = arr.filter(t => t.asset === f.asset);
+  if (f.setup !== 'all') arr = arr.filter(t => t.setup === f.setup);
+  if (f.tag !== 'all') arr = arr.filter(t => (t.tags || []).includes(f.tag));
+  if (f.dateRange !== 'all') {
+    const now = Date.now();
+    const days = f.dateRange === '30' ? 30 : f.dateRange === '90' ? 90 : 0;
+    if (days > 0) {
+      const cutoff = now - days * 24 * 60 * 60 * 1000;
+      arr = arr.filter(t => new Date(t.iso).getTime() >= cutoff);
+    }
+  }
+  return arr;
+}
+
+function calcStats(arr) {
+  const total = arr.length;
+  if (total === 0) return null;
+  const wins = arr.filter(t => t.rr_actual > 0);
+  const losses = arr.filter(t => t.rr_actual < 0);
+  const winRate = wins.length / total;
+  const lossRate = losses.length / total;
+  const avgRRPlanned = arr.reduce((s, t) => s + t.rr_planned, 0) / total;
+  const avgRRActual = arr.reduce((s, t) => s + t.rr_actual, 0) / total;
+  const avgWin = wins.length > 0 ? wins.reduce((s, t) => s + t.rr_actual, 0) / wins.length : 0;
+  const avgLoss = losses.length > 0 ? Math.abs(losses.reduce((s, t) => s + t.rr_actual, 0) / losses.length) : 0;
+  const expectancy = (winRate * avgWin) - (lossRate * avgLoss);
+  const sumWinR = wins.reduce((s, t) => s + t.rr_actual, 0);
+  const sumLossR = Math.abs(losses.reduce((s, t) => s + t.rr_actual, 0));
+  const profitFactor = sumLossR === 0 ? (sumWinR > 0 ? Infinity : 0) : sumWinR / sumLossR;
+  const tpResp = arr.filter(t => t.tp_respected).length / total;
+  const slResp = arr.filter(t => t.sl_respected).length / total;
+
+  // P&L in $
+  const acc = currentAccount();
+  const pnlDollar = arr.reduce((s, t) => {
+    const risk = (t.risk_pct || acc.risk_pct) / 100;
+    return s + (t.rr_actual * risk * acc.capital);
+  }, 0);
+  const roi = (pnlDollar / acc.capital) * 100;
+
+  return {
+    total, wins: wins.length, losses: losses.length,
+    winRate, avgRRPlanned, avgRRActual, expectancy, profitFactor,
+    tpResp, slResp, pnlDollar, roi, avgWin, avgLoss,
+  };
+}
+
+function equityCurveData(arr) {
+  const acc = currentAccount();
+  let eq = acc.capital;
+  const points = [{ n: 0, eq }];
+  arr.forEach((t, i) => {
+    const risk = (t.risk_pct || acc.risk_pct) / 100;
+    eq = eq + (t.rr_actual * risk * acc.capital);
+    points.push({ n: i + 1, eq: parseFloat(eq.toFixed(2)) });
+  });
+  return points;
+}
+
+function breakdownBy(arr, key) {
+  const groups = {};
+  arr.forEach(t => {
+    const k = key === 'tag' ? null : (t[key] || '—');
+    if (key === 'tag') {
+      (t.tags || []).forEach(tag => {
+        groups[tag] = groups[tag] || [];
+        groups[tag].push(t);
+      });
+    } else {
+      groups[k] = groups[k] || [];
+      groups[k].push(t);
+    }
+  });
+  return Object.entries(groups).map(([k, ts]) => {
+    const s = calcStats(ts);
+    return { key: k, count: ts.length, stats: s };
+  }).sort((a, b) => b.count - a.count);
+}
+
+// ============================================================
+//  RENDER
+// ============================================================
+function render() {
+  // Subtitle
+  const acc = currentAccount();
+  const tradesInAcc = tradesForCurrentAccount();
+  document.getElementById('subtitle').textContent =
+    state.loading ? 'CARICAMENTO…' : `${tradesInAcc.length} TRADE · ${acc.name.toUpperCase()}`;
+
+  // Account tabs
+  renderAccountTabs();
+
+  // View tabs
+  document.querySelectorAll('.view-tab').forEach(b => {
+    b.classList.toggle('active', b.dataset.view === state.view && state.view !== 'settings');
+  });
+  document.getElementById('settings-btn').classList.toggle('active', state.view === 'settings');
+
+  // Views
+  document.getElementById('log-view').classList.toggle('hidden', state.view !== 'log');
+  document.getElementById('stats-view').classList.toggle('hidden', state.view !== 'stats');
+  document.getElementById('settings-view').classList.toggle('hidden', state.view !== 'settings');
+  document.getElementById('view-tabs').classList.toggle('hidden', state.view === 'settings');
+  document.getElementById('account-tabs').classList.toggle('hidden', state.view === 'settings');
+  document.getElementById('footer-back').style.display = state.view === 'settings' ? 'inline-block' : 'none';
+
+  if (state.view === 'log') renderLog();
+  else if (state.view === 'stats') renderStats();
+  else if (state.view === 'settings') renderSettings();
+}
+
+function renderAccountTabs() {
+  const box = document.getElementById('account-tabs');
+  box.innerHTML = '';
+  state.config.accounts.forEach(a => {
+    const btn = document.createElement('button');
+    btn.className = 'account-tab' + (a.id === state.config.current_account_id ? ' active' : '');
+    btn.textContent = a.name;
+    btn.onclick = async () => {
+      state.config.current_account_id = a.id;
+      state.form.risk_pct = String(a.risk_pct);
+      document.getElementById('risk-pct').value = String(a.risk_pct);
+      await saveConfig();
+      render();
+    };
+    box.appendChild(btn);
+  });
+}
+
+function renderLog() {
+  // Form: direzione
+  document.getElementById('dir-long').classList.toggle('active', state.form.direction === 'long');
+  document.getElementById('dir-short').classList.toggle('active', state.form.direction === 'short');
+
+  // Asset dropdown
+  const assetSel = document.getElementById('asset');
+  if (assetSel.children.length !== state.config.assets.length || assetSel.value !== state.form.asset) {
+    assetSel.innerHTML = '';
+    state.config.assets.forEach(a => {
+      const opt = document.createElement('option');
+      opt.value = a; opt.textContent = a;
+      assetSel.appendChild(opt);
+    });
+    if (!state.form.asset && state.config.assets.length) state.form.asset = state.config.assets[0];
+    assetSel.value = state.form.asset;
+  }
+
+  // Setup chips
+  const setupBox = document.getElementById('setup-chips');
+  setupBox.innerHTML = '';
+  state.config.setups.forEach(s => {
+    const btn = document.createElement('button');
+    btn.className = 'chip' + (state.form.setup === s ? ' active' : '');
+    btn.textContent = s;
+    btn.onclick = () => { state.form.setup = state.form.setup === s ? '' : s; render(); };
+    setupBox.appendChild(btn);
+  });
+
+  // TP / SL
+  document.getElementById('tp-yes').classList.toggle('active', state.form.tp_respected === true);
+  document.getElementById('tp-no').classList.toggle('active', state.form.tp_respected === false);
+  document.getElementById('sl-yes').classList.toggle('active', state.form.sl_respected === true);
+  document.getElementById('sl-no').classList.toggle('active', state.form.sl_respected === false);
+
+  // R/R reale visibility
+  document.getElementById('rr-actual-wrap').classList.toggle('hidden', state.form.tp_respected !== false);
+
+  // Tag chips
+  const tagBox = document.getElementById('tag-chips');
+  tagBox.innerHTML = '';
+  state.config.tags.forEach(tg => {
+    const btn = document.createElement('button');
+    const active = state.form.tags.includes(tg);
+    btn.className = 'chip' + (active ? ' active' : '');
+    btn.textContent = tg;
+    btn.onclick = () => {
+      if (active) state.form.tags = state.form.tags.filter(x => x !== tg);
+      else state.form.tags.push(tg);
+      render();
+    };
+    tagBox.appendChild(btn);
+  });
+
+  // Trade list
+  const list = document.getElementById('trades-list');
+  const arr = tradesForCurrentAccount();
+  if (arr.length === 0) {
+    list.innerHTML = '<div class="empty">' + (state.loading ? '…' : 'nessun trade ancora') + '</div>';
+    return;
+  }
+  list.innerHTML = '';
+  [...arr].reverse().forEach(t => {
+    const row = document.createElement('div');
+    row.className = 'trade-row';
+    const valCls = t.rr_actual > 0 ? 'val-pos' : t.rr_actual === 0 ? 'val-zero' : 'val-neg';
+    const valSign = t.rr_actual > 0 ? '+' : '';
+    row.innerHTML = `
+      <div class="trade-n">#${t.n}</div>
+      <div class="trade-dir ${t.direction}">${t.direction.toUpperCase()}</div>
+      <div class="trade-asset">${escapeHtml(t.asset || '—')}</div>
+      <div class="trade-setup">${escapeHtml(t.setup || '—')}</div>
+      <div class="trade-rr ${valCls}">${valSign}${t.rr_actual}R</div>
+      <div class="trade-ts">${t.ts}</div>
+      <button class="trade-del" data-del="${t.id}">×</button>
+      ${(t.tags && t.tags.length) ? `<div class="trade-tags">${t.tags.map(tg => `<span class="tag-pill">${escapeHtml(tg)}</span>`).join('')}</div>` : ''}
+      ${t.note ? `<div class="trade-note">${escapeHtml(t.note)}</div>` : ''}
+    `;
+    list.appendChild(row);
+  });
+  list.querySelectorAll('[data-del]').forEach(b => {
+    b.onclick = () => {
+      if (confirm('Eliminare questo trade?')) deleteTrade(parseInt(b.dataset.del));
+    };
+  });
+}
+
+function renderStats() {
+  // Filtri
+  renderFilters();
+
+  const arr = filteredTrades();
+  const container = document.getElementById('stats-content');
+  if (arr.length === 0) {
+    container.innerHTML = '<div class="empty">nessun trade con i filtri correnti</div>';
+    return;
+  }
+  const s = calcStats(arr);
+  const acc = currentAccount();
+
+  const pf = isFinite(s.profitFactor) ? s.profitFactor.toFixed(2) : '∞';
+  const pnlSign = s.pnlDollar >= 0 ? '+' : '';
+  const roiSign = s.roi >= 0 ? '+' : '';
+
+  let html = `
+    <div class="stat-grid">
+      <div class="stat-box">
+        <div class="stat-label">Win Rate</div>
+        <div class="stat-value ${s.winRate >= 0.5 ? 'val-pos' : 'val-neg'}">${(s.winRate*100).toFixed(0)}%</div>
+        <div class="stat-sub">${s.wins}/${s.total} trade</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Expectancy</div>
+        <div class="stat-value ${s.expectancy > 0 ? 'val-pos' : s.expectancy === 0 ? 'val-zero' : 'val-neg'}">${s.expectancy >= 0 ? '+' : ''}${s.expectancy.toFixed(2)}R</div>
+        <div class="stat-sub">per trade</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Profit Factor</div>
+        <div class="stat-value ${parseFloat(pf) >= 1 || pf === '∞' ? 'val-pos' : 'val-neg'}">${pf}</div>
+        <div class="stat-sub">vinte / perse</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">P&amp;L</div>
+        <div class="stat-value ${s.pnlDollar > 0 ? 'val-pos' : s.pnlDollar === 0 ? 'val-zero' : 'val-neg'}">${pnlSign}$${s.pnlDollar.toFixed(0)}</div>
+        <div class="stat-sub">ROI ${roiSign}${s.roi.toFixed(1)}%</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">R/R Pianif. / Reale</div>
+        <div class="stat-value">${s.avgRRPlanned.toFixed(2)} / <span class="${s.avgRRActual >= 0 ? 'val-pos' : 'val-neg'}">${s.avgRRActual >= 0 ? '+' : ''}${s.avgRRActual.toFixed(2)}</span></div>
+        <div class="stat-sub">media R</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">TP / SL Rispettato</div>
+        <div class="stat-value"><span class="${s.tpResp >= 0.6 ? 'val-pos' : 'val-neg'}">${(s.tpResp*100).toFixed(0)}%</span> / <span class="${s.slResp >= 0.8 ? 'val-pos' : 'val-neg'}">${(s.slResp*100).toFixed(0)}%</span></div>
+        <div class="stat-sub">su ${s.total} trade</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Equity curve (capitale $${acc.capital.toFixed(0)})</div>
+      <div id="equity-chart"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">R/R pianificato vs reale</div>
+      <div id="bar-chart"></div>
+    </div>
+  `;
+
+  // Breakdowns
+  const byAsset = breakdownBy(arr, 'asset');
+  const bySetup = breakdownBy(arr, 'setup');
+  const byTag = breakdownBy(arr, 'tag');
+
+  if (byAsset.length > 1) {
+    html += `
+      <div class="panel">
+        <div class="panel-title">Breakdown per asset</div>
+        ${renderBreakdown(byAsset)}
+      </div>`;
+  }
+  if (bySetup.length > 1) {
+    html += `
+      <div class="panel">
+        <div class="panel-title">Breakdown per setup</div>
+        ${renderBreakdown(bySetup)}
+      </div>`;
+  }
+  if (byTag.length > 0) {
+    html += `
+      <div class="panel">
+        <div class="panel-title">Breakdown per tag</div>
+        ${renderBreakdown(byTag)}
+      </div>`;
+  }
+
+  // Insights
+  if (arr.length >= 5) {
+    html += renderInsights(s, byAsset, bySetup);
+  }
+
+  container.innerHTML = html;
+
+  drawEquityChart(equityCurveData(arr));
+  drawBarChart(arr);
+}
+
+function renderBreakdown(items) {
+  return items.map(item => {
+    const s = item.stats;
+    if (!s) return '';
+    const valCls = s.expectancy > 0 ? 'val-pos' : s.expectancy < 0 ? 'val-neg' : 'val-zero';
+    const sign = s.expectancy >= 0 ? '+' : '';
+    return `
+      <div class="breakdown-row">
+        <div>
+          <div class="breakdown-label">${escapeHtml(item.key)}</div>
+          <div class="breakdown-stats">${item.count} trade · WR ${(s.winRate*100).toFixed(0)}%</div>
+        </div>
+        <div class="breakdown-value ${valCls}">${sign}${s.expectancy.toFixed(2)}R</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderInsights(s, byAsset, bySetup) {
+  const alerts = [];
+  const positives = [];
+  if (s.avgRRActual < s.avgRRPlanned * 0.7) {
+    alerts.push(`R/R reale molto sotto il pianificato (${s.avgRRActual.toFixed(2)}R vs ${s.avgRRPlanned.toFixed(2)}R). Stai chiudendo i trade troppo presto.`);
+  }
+  if (s.tpResp < 0.5) {
+    alerts.push(`TP rispettato solo nel ${(s.tpResp*100).toFixed(0)}% dei casi: abbassa sistematicamente l'R/R reale.`);
+  }
+  if (s.slResp < 0.7) {
+    alerts.push(`SL rispettato solo nel ${(s.slResp*100).toFixed(0)}% dei casi: stai lasciando correre le perdite.`);
+  }
+  if (s.expectancy < 0) {
+    alerts.push(`Expectancy negativa (${s.expectancy.toFixed(2)}R per trade): il sistema attuale non è profittevole su grandi numeri.`);
+  }
+  // Per asset/setup negativi
+  byAsset.filter(b => b.stats && b.count >= 3 && b.stats.expectancy < 0)
+    .forEach(b => alerts.push(`Asset ${b.key}: expectancy ${b.stats.expectancy.toFixed(2)}R su ${b.count} trade. Edge negativo.`));
+  bySetup.filter(b => b.stats && b.count >= 3 && b.stats.expectancy < 0)
+    .forEach(b => alerts.push(`Setup "${b.key}": expectancy ${b.stats.expectancy.toFixed(2)}R su ${b.count} trade. Edge negativo.`));
+
+  if (s.expectancy > 0.2 && s.tpResp >= 0.6 && s.slResp >= 0.8) {
+    positives.push(`Sistema profittevole e disciplinato: expectancy +${s.expectancy.toFixed(2)}R, TP/SL rispettati. Continua a raccogliere dati.`);
+  }
+
+  if (alerts.length === 0 && positives.length === 0) return '';
+  return `
+    <div class="panel">
+      <div class="panel-title">Insight</div>
+      ${alerts.map(a => `<div class="insight-item">${a}</div>`).join('')}
+      ${positives.map(p => `<div class="insight-item positive">✓ ${p}</div>`).join('')}
+    </div>
+  `;
+}
+
+function renderFilters() {
+  const box = document.getElementById('stats-filters');
+  const f = state.filters;
+  const assets = ['all', ...state.config.assets];
+  const setups = ['all', ...state.config.setups];
+  const tags = ['all', ...state.config.tags];
+  box.innerHTML = `
+    <select class="filter-select" id="filter-date">
+      <option value="all"${f.dateRange==='all'?' selected':''}>Tutte le date</option>
+      <option value="30"${f.dateRange==='30'?' selected':''}>Ultimi 30g</option>
+      <option value="90"${f.dateRange==='90'?' selected':''}>Ultimi 90g</option>
+    </select>
+    <select class="filter-select" id="filter-asset">
+      ${assets.map(a => `<option value="${a}"${f.asset===a?' selected':''}>${a==='all'?'Tutti gli asset':a}</option>`).join('')}
+    </select>
+    <select class="filter-select" id="filter-setup">
+      ${setups.map(s => `<option value="${s}"${f.setup===s?' selected':''}>${s==='all'?'Tutti i setup':s}</option>`).join('')}
+    </select>
+    <select class="filter-select" id="filter-tag">
+      ${tags.map(t => `<option value="${t}"${f.tag===t?' selected':''}>${t==='all'?'Tutti i tag':t}</option>`).join('')}
+    </select>
+  `;
+  document.getElementById('filter-date').onchange = e => { state.filters.dateRange = e.target.value; renderStats(); };
+  document.getElementById('filter-asset').onchange = e => { state.filters.asset = e.target.value; renderStats(); };
+  document.getElementById('filter-setup').onchange = e => { state.filters.setup = e.target.value; renderStats(); };
+  document.getElementById('filter-tag').onchange = e => { state.filters.tag = e.target.value; renderStats(); };
+}
+
+// ============================================================
+//  SETTINGS
+// ============================================================
+function renderSettings() {
+  // Accounts
+  const accBox = document.getElementById('accounts-editor');
+  accBox.innerHTML = '';
+  state.config.accounts.forEach((a, i) => {
+    const card = document.createElement('div');
+    card.className = 'account-card';
+    card.innerHTML = `
+      <div class="account-card-header">
+        <div class="account-card-name">Account ${i+1}</div>
+      </div>
+      <div class="field">
+        <span class="field-label">Nome</span>
+        <input class="input" type="text" value="${escapeHtml(a.name)}" data-acc-name="${a.id}">
+      </div>
+      <div class="field-row">
+        <div class="field-col">
+          <span class="field-label">Capitale $</span>
+          <input class="input" type="number" value="${a.capital}" min="0" step="100" inputmode="decimal" data-acc-cap="${a.id}">
+        </div>
+        <div class="field-col">
+          <span class="field-label">Rischio % standard</span>
+          <input class="input" type="number" value="${a.risk_pct}" min="0" step="0.1" inputmode="decimal" data-acc-risk="${a.id}">
+        </div>
+      </div>
+    `;
+    accBox.appendChild(card);
+  });
+  // Listener accounts
+  accBox.querySelectorAll('[data-acc-name]').forEach(inp => {
+    inp.onchange = async (e) => {
+      const id = inp.dataset.accName;
+      const acc = state.config.accounts.find(a => a.id === id);
+      if (acc) { acc.name = e.target.value.trim() || acc.name; await saveConfig(); render(); }
+    };
+  });
+  accBox.querySelectorAll('[data-acc-cap]').forEach(inp => {
+    inp.onchange = async (e) => {
+      const id = inp.dataset.accCap;
+      const acc = state.config.accounts.find(a => a.id === id);
+      if (acc) { acc.capital = parseFloat(e.target.value) || 0; await saveConfig(); render(); }
+    };
+  });
+  accBox.querySelectorAll('[data-acc-risk]').forEach(inp => {
+    inp.onchange = async (e) => {
+      const id = inp.dataset.accRisk;
+      const acc = state.config.accounts.find(a => a.id === id);
+      if (acc) { acc.risk_pct = parseFloat(e.target.value) || 1.0; await saveConfig(); render(); }
+    };
+  });
+
+  // Lists
+  renderListEditor('assets-editor', state.config.assets, 'assets', 'es. BTC/USDT');
+  renderListEditor('setups-editor', state.config.setups, 'setups', 'es. Doppio minimo');
+  renderListEditor('tags-editor', state.config.tags, 'tags', 'es. Trade da manuale');
+
+  // Theme grid
+  renderThemeGrid();
+}
+
+function renderListEditor(elId, arr, key, placeholder) {
+  const box = document.getElementById(elId);
+  box.innerHTML = '';
+  arr.forEach((item, i) => {
+    const row = document.createElement('div');
+    row.className = 'list-item';
+    row.innerHTML = `
+      <span class="list-item-name">${escapeHtml(item)}</span>
+      <button class="btn-secondary" style="padding: 3px 8px; font-size: 10px;" data-remove="${i}">×</button>
+    `;
+    box.appendChild(row);
+  });
+  const addRow = document.createElement('div');
+  addRow.className = 'list-add-row';
+  addRow.innerHTML = `
+    <input class="list-add-input" type="text" placeholder="${placeholder}" data-add-input>
+    <button class="list-add-btn" data-add-btn>+</button>
+  `;
+  box.appendChild(addRow);
+
+  box.querySelectorAll('[data-remove]').forEach(b => {
+    b.onclick = async () => {
+      const i = parseInt(b.dataset.remove);
+      state.config[key].splice(i, 1);
+      await saveConfig();
+      renderSettings();
+    };
+  });
+  const input = box.querySelector('[data-add-input]');
+  const addBtn = box.querySelector('[data-add-btn]');
+  const doAdd = async () => {
+    const v = input.value.trim();
+    if (!v) return;
+    if (state.config[key].includes(v)) {
+      showToast('Già presente', 'error');
+      return;
+    }
+    state.config[key].push(v);
+    await saveConfig();
+    renderSettings();
+  };
+  addBtn.onclick = doAdd;
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); doAdd(); } });
+}
+
+function renderThemeGrid() {
+  const box = document.getElementById('theme-grid');
+  box.innerHTML = '';
+  Object.entries(themes).forEach(([key, theme]) => {
+    const btn = document.createElement('button');
+    btn.className = 'theme-option' + (state.config.theme === key ? ' active' : '');
+    btn.innerHTML = `
+      <div class="theme-option-name">${theme.name}</div>
+      <div class="theme-option-desc">${theme.desc}</div>
+      <div class="theme-swatch">
+        <span style="background:${theme.bg}"></span>
+        <span style="background:${theme.surface}"></span>
+        <span style="background:${theme.accent}"></span>
+        <span style="background:${theme.win}"></span>
+        <span style="background:${theme.loss === 'transparent' ? theme.text : theme.loss}"></span>
+      </div>
+    `;
+    btn.onclick = async () => {
+      state.config.theme = key;
+      applyTheme(key);
+      await saveConfig();
+      renderSettings();
+    };
+    box.appendChild(btn);
+  });
+}
+
+// ============================================================
+//  SVG CHARTS
+// ============================================================
+function drawEquityChart(points) {
+  const container = document.getElementById('equity-chart');
+  if (!container || points.length === 0) return;
+  const W = container.clientWidth || 320;
+  const H = 160;
+  const padL = 44, padR = 10, padT = 10, padB = 22;
+  const innerW = W - padL - padR, innerH = H - padT - padB;
+  const vals = points.map(p => p.eq);
+  const maxV = Math.max(...vals);
+  const minV = Math.min(...vals);
+  const range = maxV - minV || 1;
+  const xS = i => padL + (i / Math.max(1, points.length - 1)) * innerW;
+  const yS = v => padT + innerH - ((v - minV) / range) * innerH;
+  const acc = currentAccount();
+
+  const stroke = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#0A0A0A';
+  const dim = getComputedStyle(document.documentElement).getPropertyValue('--border-subtle').trim();
+  const txt = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim();
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px;display:block">`;
+  // Reference line capitale iniziale
+  const baseY = yS(acc.capital);
+  if (acc.capital >= minV && acc.capital <= maxV) {
+    svg += `<line x1="${padL}" y1="${baseY}" x2="${W-padR}" y2="${baseY}" stroke="${dim}" stroke-width="1" stroke-dasharray="3 3"/>`;
+  }
+  // Path
+  const path = points.map((p, i) => `${i===0?'M':'L'} ${xS(i)} ${yS(p.eq)}`).join(' ');
+  svg += `<path d="${path}" stroke="${stroke}" stroke-width="2" fill="none"/>`;
+  // Y labels
+  svg += `<text x="4" y="${yS(maxV)+4}" fill="${txt}" font-size="9" font-family="JetBrains Mono">$${maxV.toFixed(0)}</text>`;
+  svg += `<text x="4" y="${yS(minV)+4}" fill="${txt}" font-size="9" font-family="JetBrains Mono">$${minV.toFixed(0)}</text>`;
+  svg += `</svg>`;
+  container.innerHTML = svg;
+}
+
+function drawBarChart(trades) {
+  const container = document.getElementById('bar-chart');
+  if (!container || trades.length === 0) return;
+  const W = container.clientWidth || 320;
+  const H = 160;
+  const padL = 32, padR = 10, padT = 10, padB = 24;
+  const innerW = W - padL - padR, innerH = H - padT - padB;
+  const allVals = trades.flatMap(t => [t.rr_planned, t.rr_actual]);
+  const maxV = Math.max(...allVals, 1);
+  const minV = Math.min(...allVals, 0);
+  const range = maxV - minV || 1;
+  const xStep = innerW / trades.length;
+  const barW = Math.max(2, xStep * 0.35);
+  const yS = v => padT + innerH - ((v - minV) / range) * innerH;
+  const zeroY = yS(0);
+
+  const txt = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim();
+  const winC = getComputedStyle(document.documentElement).getPropertyValue('--win').trim();
+  const lossC = getComputedStyle(document.documentElement).getPropertyValue('--loss').trim();
+  const accC = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+  const isMono = document.body.getAttribute('data-theme') === 'editorial';
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px;display:block">`;
+  svg += `<line x1="${padL}" y1="${zeroY}" x2="${W-padR}" y2="${zeroY}" stroke="${txt}" stroke-width="1"/>`;
+  // Y labels
+  svg += `<text x="4" y="${yS(maxV)+4}" fill="${txt}" font-size="9" font-family="JetBrains Mono">${maxV.toFixed(1)}</text>`;
+  svg += `<text x="4" y="${zeroY+4}" fill="${txt}" font-size="9" font-family="JetBrains Mono">0</text>`;
+  if (minV < 0) svg += `<text x="4" y="${yS(minV)+4}" fill="${txt}" font-size="9" font-family="JetBrains Mono">${minV.toFixed(1)}</text>`;
+
+  trades.forEach((t, i) => {
+    const cx = padL + xStep * i + xStep / 2;
+    // Pianificato (semi-trasparente)
+    const py1 = yS(t.rr_planned), ph = Math.abs(zeroY - py1), py = Math.min(zeroY, py1);
+    svg += `<rect x="${cx - barW - 1}" y="${py}" width="${barW}" height="${ph}" fill="${accC}" fill-opacity="0.25"/>`;
+    // Reale
+    const ay1 = yS(t.rr_actual), ah = Math.abs(zeroY - ay1), ay = Math.min(zeroY, ay1);
+    if (isMono) {
+      // Filled per positivi, outlined (vuoto con bordo) per negativi
+      if (t.rr_actual >= 0) {
+        svg += `<rect x="${cx + 1}" y="${ay}" width="${barW}" height="${ah}" fill="${winC}"/>`;
+      } else {
+        svg += `<rect x="${cx + 1}" y="${ay}" width="${barW}" height="${ah}" fill="none" stroke="${winC}" stroke-width="1.5"/>`;
+      }
+    } else {
+      svg += `<rect x="${cx + 1}" y="${ay}" width="${barW}" height="${ah}" fill="${t.rr_actual >= 0 ? winC : lossC}"/>`;
+    }
+  });
+  svg += `</svg>`;
+  container.innerHTML = svg;
+}
+
+// ============================================================
+//  EVENTS
+// ============================================================
+function bindEvents() {
+  // View tabs
+  document.querySelectorAll('.view-tab').forEach(b => {
+    b.onclick = () => { state.view = b.dataset.view; render(); };
+  });
+
+  // Settings button
+  document.getElementById('settings-btn').onclick = () => {
+    state.view = state.view === 'settings' ? 'log' : 'settings';
+    render();
+  };
+  document.getElementById('footer-back').onclick = () => {
+    state.view = 'log';
+    render();
+  };
+
+  // Form: direction
+  document.getElementById('dir-long').onclick = () => { state.form.direction = 'long'; render(); };
+  document.getElementById('dir-short').onclick = () => { state.form.direction = 'short'; render(); };
+
+  // Asset
+  document.getElementById('asset').onchange = e => { state.form.asset = e.target.value; };
+
+  // RR planned, RR actual, Risk
+  document.getElementById('rr-planned').oninput = e => { state.form.rr_planned = e.target.value; };
+  document.getElementById('rr-actual').oninput = e => { state.form.rr_actual = e.target.value; };
+  document.getElementById('risk-pct').oninput = e => { state.form.risk_pct = e.target.value; };
+
+  // TP/SL
+  document.getElementById('tp-yes').onclick = () => {
+    state.form.tp_respected = true;
+    state.form.rr_actual = state.form.rr_planned;
+    render();
+  };
+  document.getElementById('tp-no').onclick = () => {
+    state.form.tp_respected = false;
+    state.form.rr_actual = '';
+    document.getElementById('rr-actual').value = '';
+    render();
+  };
+  document.getElementById('sl-yes').onclick = () => { state.form.sl_respected = true; render(); };
+  document.getElementById('sl-no').onclick = () => { state.form.sl_respected = false; render(); };
+
+  // Note
+  document.getElementById('note-toggle').onclick = () => {
+    const ta = document.getElementById('note');
+    const wasHidden = ta.classList.contains('hidden');
+    ta.classList.toggle('hidden');
+    document.getElementById('note-toggle').textContent = wasHidden ? '− nascondi nota' : '+ aggiungi nota libera';
+    if (wasHidden) ta.focus();
+  };
+  document.getElementById('note').oninput = e => { state.form.note = e.target.value; };
+
+  // Add trade
+  document.getElementById('add-btn').onclick = addTrade;
+
+  // Export / Import / Reset
+  document.getElementById('export-btn').onclick = exportData;
+  document.getElementById('import-btn').onclick = () => document.getElementById('import-file').click();
+  document.getElementById('import-file').onchange = e => {
+    if (e.target.files && e.target.files[0]) {
+      importData(e.target.files[0]);
+      e.target.value = '';
+    }
+  };
+  document.getElementById('reset-btn').onclick = resetAll;
+
+  // Resize → redraw charts
+  window.addEventListener('resize', () => {
+    if (state.view === 'stats') renderStats();
+  });
+}
+
+// ============================================================
+//  UTIL
+// ============================================================
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+}
+
+// ============================================================
+//  SERVICE WORKER
+// ============================================================
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(err => console.warn('SW reg failed:', err));
+  });
+}
+
+// Boot
+init();
+</script>
+</body>
+</html>
