@@ -769,27 +769,20 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
       <input type="number" id="risk-amt" class="input big-num hidden" placeholder="es. 5000" step="100" min="0" inputmode="decimal">
       <div class="hint hidden" id="risk-amt-hint">Per default usa il capitale corrente dell'account. Specifica un valore solo se vuoi rischiare su una base diversa (es. tieni parte del capitale fuori dal trading).</div>
     </div>
-    <div class="field-row">
-      <div class="field-col" style="flex: 0; min-width: auto;">
-        <span class="field-label required">TP rispettato *</span>
-        <div class="chip-group">
-          <button class="chip win" id="tp-yes">SÌ</button>
-          <button class="chip loss" id="tp-no">NO</button>
-        </div>
-      </div>
-      <div class="field-col" style="flex: 0; min-width: auto;">
-        <span class="field-label required">SL rispettato *</span>
-        <div class="chip-group">
-          <button class="chip win" id="sl-yes">SÌ</button>
-          <button class="chip loss" id="sl-no">NO</button>
-        </div>
+    <div class="field">
+      <span class="field-label required">Esito *</span>
+      <div class="chip-group">
+        <button class="chip win" id="out-win">WIN</button>
+        <button class="chip" id="out-be">BE</button>
+        <button class="chip" id="out-partial">PARZIALE</button>
+        <button class="chip loss" id="out-loss">LOSS</button>
       </div>
     </div>
 
     <div class="field hidden" id="rr-actual-wrap">
-      <span class="field-label required">R/R reale *</span>
-      <input type="number" id="rr-actual" class="input big-num" placeholder="es. 0.5 / 0 / -1" step="0.1" inputmode="decimal">
-      <div class="hint">+ gain anticipato · 0 BE · -1 SL pieno · valori negativi se oltre SL</div>
+      <span class="field-label required" id="rr-actual-label">R/R reale *</span>
+      <input type="number" id="rr-actual" class="input big-num" placeholder="es. 0.5" step="0.1" min="0" inputmode="decimal">
+      <div class="hint" id="rr-actual-hint">Quanto hai preso (valore positivo).</div>
     </div>
 
     <div class="field">
@@ -1058,6 +1051,7 @@ function makeEmptyForm() {
     risk_pct: '',
     risk_amount: '',
     capital_used: '',
+    outcome: null, // 'win' | 'be' | 'partial' | 'loss' | null
     tp_respected: null,
     sl_respected: null,
     rr_actual: '',
@@ -1066,11 +1060,32 @@ function makeEmptyForm() {
   };
 }
 
+// Deriva l'outcome da rr_actual e rr_planned (per trade legacy senza campo outcome)
+function deriveOutcome(t) {
+  if (t.rr_actual == null) return null;
+  if (t.rr_actual === 0) return 'be';
+  if (t.rr_actual < 0) return 'loss';
+  // rr_actual > 0
+  if (t.rr_planned != null && Math.abs(t.rr_actual - t.rr_planned) < 0.01) return 'win';
+  return 'partial';
+}
+
+// Deriva tp_respected/sl_respected da outcome (per stats backward-compat)
+function deriveDiscipline(outcome, rr_actual) {
+  // tp_respected: vero solo se WIN (preso TP pieno)
+  // sl_respected: vero se WIN/BE/PARTIAL, oppure LOSS con |R| <= 1 (no overshoot)
+  const tp_respected = outcome === 'win';
+  let sl_respected;
+  if (outcome === 'loss') sl_respected = Math.abs(rr_actual) <= 1;
+  else sl_respected = true;
+  return { tp_respected, sl_respected };
+}
+
 // ============================================================
 //  INDEXEDDB
 // ============================================================
 const DB_NAME = 'tradelog';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const TRADES_STORE = 'trades';
 const CONFIG_STORE = 'config';
 
@@ -1097,6 +1112,19 @@ function openDB() {
             if (!Array.isArray(t.tags)) { t.tags = []; needsUpdate = true; }
             if (t.risk_pct == null) { t.risk_pct = 1.0; needsUpdate = true; }
             if (needsUpdate) store.put(t);
+          });
+        };
+      }
+      // Migrazione v2 -> v3: deriva 'outcome' (win/be/partial/loss) dai trade esistenti
+      if (e.oldVersion < 3 && db.objectStoreNames.contains(TRADES_STORE)) {
+        const store = tx.objectStore(TRADES_STORE);
+        const getReq = store.getAll();
+        getReq.onsuccess = () => {
+          getReq.result.forEach(t => {
+            if (!t.outcome) {
+              t.outcome = deriveOutcome(t);
+              store.put(t);
+            }
           });
         };
       }
@@ -1258,18 +1286,26 @@ async function addTrade() {
   const f = state.form;
   const missing = [];
   if (!f.rr_planned) missing.push('R/R pianificato');
-  if (f.tp_respected === null) missing.push('TP rispettato');
-  if (f.sl_respected === null) missing.push('SL rispettato');
-  if (f.tp_respected === false && f.rr_actual === '') missing.push('R/R reale');
+  if (f.outcome === null) missing.push('Esito');
+  if ((f.outcome === 'partial' || f.outcome === 'loss') && f.rr_actual === '') missing.push('R/R reale');
 
   if (missing.length > 0) {
     showToast('Compila: ' + missing.join(', '), 'error');
     return;
   }
 
-  const rr_actual = f.tp_respected
-    ? parseFloat(f.rr_planned)
-    : parseFloat(f.rr_actual);
+  // Deriva rr_actual da outcome
+  const rrPlanned = parseFloat(f.rr_planned);
+  let rr_actual;
+  switch (f.outcome) {
+    case 'win': rr_actual = rrPlanned; break;
+    case 'be': rr_actual = 0; break;
+    case 'partial': rr_actual = Math.abs(parseFloat(f.rr_actual)); break;
+    case 'loss': rr_actual = -Math.abs(parseFloat(f.rr_actual)); break;
+  }
+
+  // Deriva tp_respected / sl_respected per compatibilità
+  const disc = deriveDiscipline(f.outcome, rr_actual);
 
   // MODALITÀ MODIFICA
   if (state.editingId) {
@@ -1278,9 +1314,10 @@ async function addTrade() {
       existing.direction = f.direction;
       existing.asset = f.asset;
       existing.setup = f.setup;
-      existing.tp_respected = f.tp_respected;
-      existing.sl_respected = f.sl_respected;
-      existing.rr_planned = parseFloat(f.rr_planned);
+      existing.outcome = f.outcome;
+      existing.tp_respected = disc.tp_respected;
+      existing.sl_respected = disc.sl_respected;
+      existing.rr_planned = rrPlanned;
       existing.rr_actual = rr_actual;
       existing.risk_pct = parseFloat(f.risk_pct) || existing.risk_pct;
       existing.risk_amount = f.risk_amount === '' ? null : parseFloat(f.risk_amount);
@@ -1312,9 +1349,10 @@ async function addTrade() {
     direction: f.direction,
     asset: f.asset,
     setup: f.setup,
-    tp_respected: f.tp_respected,
-    sl_respected: f.sl_respected,
-    rr_planned: parseFloat(f.rr_planned),
+    outcome: f.outcome,
+    tp_respected: disc.tp_respected,
+    sl_respected: disc.sl_respected,
+    rr_planned: rrPlanned,
     rr_actual: rr_actual,
     risk_pct: parseFloat(f.risk_pct) || acc.risk_pct,
     risk_amount: f.risk_amount === '' ? null : parseFloat(f.risk_amount),
@@ -1341,6 +1379,11 @@ function startEdit(id) {
   const t = state.trades.find(x => x.id === id);
   if (!t) return;
   state.editingId = id;
+  const outcome = t.outcome || deriveOutcome(t);
+  // Per partial/loss l'input mostra il valore assoluto (positivo)
+  const rrInput = (outcome === 'partial' || outcome === 'loss')
+    ? String(Math.abs(t.rr_actual))
+    : '';
   state.form = {
     direction: t.direction,
     asset: t.asset,
@@ -1349,15 +1392,16 @@ function startEdit(id) {
     risk_pct: String(t.risk_pct),
     risk_amount: t.risk_amount != null ? String(t.risk_amount) : '',
     capital_used: t.capital_used != null ? String(t.capital_used) : '',
+    outcome: outcome,
     tp_respected: t.tp_respected,
     sl_respected: t.sl_respected,
-    rr_actual: String(t.rr_actual),
+    rr_actual: rrInput,
     tags: [...(t.tags || [])],
     note: t.note || '',
   };
   // Popola UI
   document.getElementById('rr-planned').value = state.form.rr_planned;
-  document.getElementById('rr-actual').value = state.form.rr_actual;
+  document.getElementById('rr-actual').value = rrInput;
   document.getElementById('risk-pct').value = state.form.risk_pct;
   document.getElementById('risk-amt').value = state.form.capital_used;
   document.getElementById('note').value = state.form.note;
@@ -1551,8 +1595,21 @@ function calcStats(arr) {
   const sumWinR = wins.reduce((s, t) => s + t.rr_actual, 0);
   const sumLossR = Math.abs(losses.reduce((s, t) => s + t.rr_actual, 0));
   const profitFactor = sumLossR === 0 ? (sumWinR > 0 ? Infinity : 0) : sumWinR / sumLossR;
-  const tpResp = arr.filter(t => t.tp_respected).length / total;
-  const slResp = arr.filter(t => t.sl_respected).length / total;
+
+  // Conteggio per outcome (con fallback per trade legacy)
+  const outcomes = arr.map(t => t.outcome || deriveOutcome(t));
+  const nWin = outcomes.filter(o => o === 'win').length;
+  const nBe = outcomes.filter(o => o === 'be').length;
+  const nPartial = outcomes.filter(o => o === 'partial').length;
+  const nLoss = outcomes.filter(o => o === 'loss').length;
+
+  // Disciplina derivata
+  // TP pieno: quanti WIN sui trade chiusi in profitto (WIN + PARZIALE)
+  const profitable = nWin + nPartial;
+  const tpResp = profitable > 0 ? nWin / profitable : null;
+  // SL contenuto: quanti LOSS con |R| <= 1 (non hai lasciato correre)
+  const slCleanCount = arr.filter((t, i) => outcomes[i] === 'loss' && Math.abs(t.rr_actual) <= 1).length;
+  const slResp = nLoss > 0 ? slCleanCount / nLoss : null;
 
   // P&L in $
   const acc = currentAccount();
@@ -1582,6 +1639,7 @@ function calcStats(arr) {
     total, wins: wins.length, losses: losses.length,
     winRate, avgRRPlanned, avgRRActual, expectancy, profitFactor,
     tpResp, slResp, pnlDollar, roi, roiRisked, totalRisked, avgWin, avgLoss,
+    nWin, nBe, nPartial, nLoss, profitable, slCleanCount,
   };
 }
 
@@ -1725,14 +1783,27 @@ function renderLog() {
     setupBox.appendChild(btn);
   });
 
-  // TP / SL
-  document.getElementById('tp-yes').classList.toggle('active', state.form.tp_respected === true);
-  document.getElementById('tp-no').classList.toggle('active', state.form.tp_respected === false);
-  document.getElementById('sl-yes').classList.toggle('active', state.form.sl_respected === true);
-  document.getElementById('sl-no').classList.toggle('active', state.form.sl_respected === false);
+  // Outcome chips
+  document.getElementById('out-win').classList.toggle('active', state.form.outcome === 'win');
+  document.getElementById('out-be').classList.toggle('active', state.form.outcome === 'be');
+  document.getElementById('out-partial').classList.toggle('active', state.form.outcome === 'partial');
+  document.getElementById('out-loss').classList.toggle('active', state.form.outcome === 'loss');
 
-  // R/R reale visibility
-  document.getElementById('rr-actual-wrap').classList.toggle('hidden', state.form.tp_respected !== false);
+  // R/R reale visibility (solo per PARZIALE e LOSS)
+  const needsRR = state.form.outcome === 'partial' || state.form.outcome === 'loss';
+  document.getElementById('rr-actual-wrap').classList.toggle('hidden', !needsRR);
+  // Label/hint dinamici
+  if (needsRR) {
+    const lbl = document.getElementById('rr-actual-label');
+    const hint = document.getElementById('rr-actual-hint');
+    if (state.form.outcome === 'partial') {
+      lbl.textContent = 'R/R preso *';
+      hint.textContent = 'Quanto profitto hai chiuso (positivo, ≤ pianificato).';
+    } else {
+      lbl.textContent = 'R/R perso *';
+      hint.textContent = 'Quanto SL hai preso (positivo). 1 = SL pieno · 0.5 = mezzo SL · >1 = oltre SL';
+    }
+  }
 
   // Tag chips
   const tagBox = document.getElementById('tag-chips');
@@ -1815,6 +1886,11 @@ function renderDetail() {
     ? `${(t.risk_pct || acc.risk_pct)}% × $${t.capital_used} = $${((t.risk_pct || acc.risk_pct) / 100 * t.capital_used).toFixed(0)} (capitale custom)`
     : `${(t.risk_pct || acc.risk_pct)}% × $${capAtTrade.toFixed(0)} = $${((t.risk_pct || acc.risk_pct) / 100 * capAtTrade).toFixed(0)}`;
 
+  // Etichetta esito (con fallback per trade legacy)
+  const outcomeKey = t.outcome || deriveOutcome(t);
+  const outcomeMap = { win: 'WIN', be: 'BE', partial: 'PARZIALE', loss: 'LOSS' };
+  const outcomeLabel = outcomeMap[outcomeKey] || '—';
+
   document.getElementById('detail-title').textContent = `Trade #${t.n}`;
   document.getElementById('detail-title-sub').textContent = `${acc.name} · ${t.ts}`;
 
@@ -1846,6 +1922,10 @@ function renderDetail() {
 
     <div class="detail-panel">
       <div class="detail-grid">
+        <div class="detail-grid-full">
+          <div class="detail-field-label">Esito</div>
+          <div class="detail-field-value big">${outcomeLabel}</div>
+        </div>
         <div>
           <div class="detail-field-label">R/R pianificato</div>
           <div class="detail-field-value big">${t.rr_planned}R</div>
@@ -1853,14 +1933,6 @@ function renderDetail() {
         <div>
           <div class="detail-field-label">R/R reale</div>
           <div class="detail-field-value big ${valCls}">${valSign}${t.rr_actual}R</div>
-        </div>
-        <div>
-          <div class="detail-field-label">TP rispettato</div>
-          <div class="detail-field-value big">${t.tp_respected ? 'Sì' : 'No'}</div>
-        </div>
-        <div>
-          <div class="detail-field-label">SL rispettato</div>
-          <div class="detail-field-value big">${t.sl_respected ? 'Sì' : 'No'}</div>
         </div>
       </div>
     </div>
@@ -1953,9 +2025,9 @@ function renderStats() {
         <div class="stat-sub">media R</div>
       </div>
       <div class="stat-box">
-        <div class="stat-label">TP / SL Rispettato</div>
-        <div class="stat-value"><span class="${s.tpResp >= 0.6 ? 'val-pos' : 'val-neg'}">${(s.tpResp*100).toFixed(0)}%</span> / <span class="${s.slResp >= 0.8 ? 'val-pos' : 'val-neg'}">${(s.slResp*100).toFixed(0)}%</span></div>
-        <div class="stat-sub">su ${s.total} trade</div>
+        <div class="stat-label">TP pieno / SL contenuto</div>
+        <div class="stat-value">${s.tpResp != null ? `<span class="${s.tpResp >= 0.6 ? 'val-pos' : 'val-neg'}">${(s.tpResp*100).toFixed(0)}%</span>` : `<span class="val-zero">—</span>`} / ${s.slResp != null ? `<span class="${s.slResp >= 0.8 ? 'val-pos' : 'val-neg'}">${(s.slResp*100).toFixed(0)}%</span>` : `<span class="val-zero">—</span>`}</div>
+        <div class="stat-sub">${s.nWin}/${s.profitable} prof · ${s.slCleanCount}/${s.nLoss} loss</div>
       </div>
     </div>
 
@@ -2032,11 +2104,11 @@ function renderInsights(s, byAsset, bySetup) {
   if (s.avgRRActual < s.avgRRPlanned * 0.7) {
     alerts.push(`R/R reale molto sotto il pianificato (${s.avgRRActual.toFixed(2)}R vs ${s.avgRRPlanned.toFixed(2)}R). Stai chiudendo i trade troppo presto.`);
   }
-  if (s.tpResp < 0.5) {
-    alerts.push(`TP rispettato solo nel ${(s.tpResp*100).toFixed(0)}% dei casi: abbassa sistematicamente l'R/R reale.`);
+  if (s.tpResp != null && s.tpResp < 0.5) {
+    alerts.push(`TP pieno preso solo nel ${(s.tpResp*100).toFixed(0)}% dei trade profittevoli: stai chiudendo prima del target.`);
   }
-  if (s.slResp < 0.7) {
-    alerts.push(`SL rispettato solo nel ${(s.slResp*100).toFixed(0)}% dei casi: stai lasciando correre le perdite.`);
+  if (s.slResp != null && s.slResp < 0.7) {
+    alerts.push(`SL contenuto solo nel ${(s.slResp*100).toFixed(0)}% delle perdite: stai lasciando correre.`);
   }
   if (s.expectancy < 0) {
     alerts.push(`Expectancy negativa (${s.expectancy.toFixed(2)}R per trade): il sistema attuale non è profittevole su grandi numeri.`);
@@ -2047,8 +2119,10 @@ function renderInsights(s, byAsset, bySetup) {
   bySetup.filter(b => b.stats && b.count >= 3 && b.stats.expectancy < 0)
     .forEach(b => alerts.push(`Setup "${b.key}": expectancy ${b.stats.expectancy.toFixed(2)}R su ${b.count} trade. Edge negativo.`));
 
-  if (s.expectancy > 0.2 && s.tpResp >= 0.6 && s.slResp >= 0.8) {
-    positives.push(`Sistema profittevole e disciplinato: expectancy +${s.expectancy.toFixed(2)}R, TP/SL rispettati. Continua a raccogliere dati.`);
+  const tpOK = s.tpResp == null || s.tpResp >= 0.6;
+  const slOK = s.slResp == null || s.slResp >= 0.8;
+  if (s.expectancy > 0.2 && tpOK && slOK) {
+    positives.push(`Sistema profittevole e disciplinato: expectancy +${s.expectancy.toFixed(2)}R. Continua a raccogliere dati.`);
   }
 
   if (alerts.length === 0 && positives.length === 0) return '';
@@ -2352,20 +2426,29 @@ function bindEvents() {
   document.getElementById('rr-actual').oninput = e => { state.form.rr_actual = e.target.value; };
   document.getElementById('risk-pct').oninput = e => { state.form.risk_pct = e.target.value; };
 
-  // TP/SL
-  document.getElementById('tp-yes').onclick = () => {
-    state.form.tp_respected = true;
-    state.form.rr_actual = state.form.rr_planned;
-    render();
-  };
-  document.getElementById('tp-no').onclick = () => {
-    state.form.tp_respected = false;
+  // Outcome
+  document.getElementById('out-win').onclick = () => {
+    state.form.outcome = 'win';
     state.form.rr_actual = '';
     document.getElementById('rr-actual').value = '';
     render();
   };
-  document.getElementById('sl-yes').onclick = () => { state.form.sl_respected = true; render(); };
-  document.getElementById('sl-no').onclick = () => { state.form.sl_respected = false; render(); };
+  document.getElementById('out-be').onclick = () => {
+    state.form.outcome = 'be';
+    state.form.rr_actual = '';
+    document.getElementById('rr-actual').value = '';
+    render();
+  };
+  document.getElementById('out-partial').onclick = () => {
+    state.form.outcome = 'partial';
+    render();
+    setTimeout(() => document.getElementById('rr-actual').focus(), 50);
+  };
+  document.getElementById('out-loss').onclick = () => {
+    state.form.outcome = 'loss';
+    render();
+    setTimeout(() => document.getElementById('rr-actual').focus(), 50);
+  };
 
   // Note
   document.getElementById('note-toggle').onclick = () => {
