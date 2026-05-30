@@ -197,6 +197,14 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
 .input.big-num { font-size: 14px; font-weight: 600; }
 .textarea { font-family: var(--font-main); resize: vertical; min-height: 60px; }
 
+/* Campo calcolato in sola lettura (rischio % derivato dal risultato $) */
+.input.computed {
+  background: var(--surface-alt);
+  color: var(--text-dim);
+  border-style: dashed;
+  cursor: default;
+}
+
 .select-native {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M3 4.5l3 3 3-3'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
@@ -758,8 +766,8 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
         <span class="field-label required">R/R pianificato *</span>
         <input type="number" id="rr-planned" class="input big-num" placeholder="1.5" step="0.1" min="0" inputmode="decimal">
       </div>
-      <div class="field-col">
-        <span class="field-label">Rischio %</span>
+      <div class="field-col" id="risk-col">
+        <span class="field-label" id="risk-mode-label">Rischio %</span>
         <input type="number" id="risk-pct" class="input big-num" placeholder="1.0" step="0.1" min="0" inputmode="decimal">
       </div>
     </div>
@@ -783,6 +791,12 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
       <span class="field-label required" id="rr-actual-label">R/R reale *</span>
       <input type="number" id="rr-actual" class="input big-num" placeholder="es. 0.5" step="0.1" min="0" inputmode="decimal">
       <div class="hint" id="rr-actual-hint">Quanto hai preso (valore positivo).</div>
+    </div>
+
+    <div class="field hidden" id="result-dollar-wrap">
+      <span class="field-label required" id="result-dollar-label">Risultato $ *</span>
+      <input type="number" id="result-dollar" class="input big-num" placeholder="es. 80" step="1" min="0" inputmode="decimal">
+      <div class="hint" id="result-dollar-hint">Quanto hai guadagnato. Il rischio si calcola da solo.</div>
     </div>
 
     <div class="field">
@@ -1051,6 +1065,8 @@ function makeEmptyForm() {
     risk_pct: '',
     risk_amount: '',
     capital_used: '',
+    result_dollar: '',
+    last_edited: 'pct', // quale campo guida: 'pct' o 'dollar'
     outcome: null, // 'win' | 'be' | 'partial' | 'loss' | null
     tp_respected: null,
     sl_respected: null,
@@ -1079,6 +1095,70 @@ function deriveDiscipline(outcome, rr_actual) {
   if (outcome === 'loss') sl_respected = Math.abs(rr_actual) <= 1;
   else sl_respected = true;
   return { tp_respected, sl_respected };
+}
+
+// Calcola il moltiplicatore R corrente dal form (per modalità $)
+function currentFormR() {
+  const f = state.form;
+  if (f.outcome === 'win') return parseFloat(f.rr_planned) || 0;
+  if (f.outcome === 'partial') return parseFloat(f.rr_actual) || 0;
+  if (f.outcome === 'loss') return parseFloat(f.rr_actual) || 0;
+  return 0;
+}
+
+// Calcola il rischio derivato dal risultato inserito: { riskDollar, pct } oppure null
+function currentDerivedRisk() {
+  const f = state.form;
+  const result = parseFloat(f.result_dollar);
+  const R = Math.abs(currentFormR());
+  if (!result || !R) return null;
+  const riskDollar = result / R;
+  const acc = currentAccount();
+  const cap = currentCapital(acc.id);
+  const pct = cap > 0 ? (riskDollar / cap) * 100 : 0;
+  return { riskDollar, pct };
+}
+
+// Sincronizza i campi Rischio % e Risultato $ in base all'ultimo modificato.
+// pct → $ : risultato = (rischio% / 100 × capitale) × |R|
+// $ → pct: rischio% = (risultato / |R|) / capitale × 100
+function syncRiskFields() {
+  const f = state.form;
+  const R = Math.abs(currentFormR());
+  const acc = currentAccount();
+  const cap = currentCapital(acc.id);
+  const pctEl = document.getElementById('risk-pct');
+  const dolEl = document.getElementById('result-dollar');
+
+  // Senza R (nessun esito) o senza capitale non posso collegarli
+  if (R && cap > 0) {
+    if (f.last_edited === 'dollar') {
+      const result = parseFloat(f.result_dollar);
+      if (!isNaN(result) && f.result_dollar !== '') {
+        const pct = ((result / R) / cap) * 100;
+        f.risk_pct = pct.toFixed(2);
+        if (pctEl && document.activeElement !== pctEl) pctEl.value = f.risk_pct;
+      }
+    } else {
+      const pct = parseFloat(f.risk_pct);
+      if (!isNaN(pct) && f.risk_pct !== '') {
+        const result = (pct / 100 * cap) * R;
+        f.result_dollar = result.toFixed(2);
+        if (dolEl && document.activeElement !== dolEl) dolEl.value = f.result_dollar;
+      }
+    }
+  }
+  // Hint sotto la casella $
+  const hint = document.getElementById('result-dollar-hint');
+  if (hint) {
+    const pct = parseFloat(f.risk_pct);
+    if (!isNaN(pct) && cap > 0) {
+      const riskDollar = pct / 100 * cap;
+      hint.innerHTML = `Rischio: <strong>$${riskDollar.toFixed(2)}</strong> (${pct.toFixed(2)}% del capitale).`;
+    } else {
+      hint.innerHTML = 'Cambia il rischio % o i $: si aggiornano a vicenda.';
+    }
+  }
 }
 
 // ============================================================
@@ -1284,6 +1364,7 @@ function currentCapital(accId) {
 // ============================================================
 async function addTrade() {
   const f = state.form;
+  const useDollar = f.last_edited === 'dollar' && f.result_dollar !== '' && f.outcome && f.outcome !== 'be';
   const missing = [];
   if (!f.rr_planned) missing.push('R/R pianificato');
   if (f.outcome === null) missing.push('Esito');
@@ -1307,6 +1388,17 @@ async function addTrade() {
   // Deriva tp_respected / sl_respected per compatibilità
   const disc = deriveDiscipline(f.outcome, rr_actual);
 
+  // Se hai inserito il risultato $: deriva il rischio esatto (risk = |risultato| / |R|)
+  // Altrimenti: usa rischio % × capitale (con eventuale capitale custom)
+  let finalRiskAmount, finalCapitalUsed;
+  if (useDollar) {
+    finalRiskAmount = Math.abs(parseFloat(f.result_dollar)) / Math.abs(rr_actual);
+    finalCapitalUsed = null;
+  } else {
+    finalRiskAmount = f.risk_amount === '' ? null : parseFloat(f.risk_amount);
+    finalCapitalUsed = f.capital_used === '' ? null : parseFloat(f.capital_used);
+  }
+
   // MODALITÀ MODIFICA
   if (state.editingId) {
     const existing = state.trades.find(t => t.id === state.editingId);
@@ -1320,8 +1412,8 @@ async function addTrade() {
       existing.rr_planned = rrPlanned;
       existing.rr_actual = rr_actual;
       existing.risk_pct = parseFloat(f.risk_pct) || existing.risk_pct;
-      existing.risk_amount = f.risk_amount === '' ? null : parseFloat(f.risk_amount);
-      existing.capital_used = f.capital_used === '' ? null : parseFloat(f.capital_used);
+      existing.risk_amount = finalRiskAmount;
+      existing.capital_used = finalCapitalUsed;
       existing.tags = [...f.tags];
       existing.note = f.note.trim();
       try {
@@ -1355,8 +1447,8 @@ async function addTrade() {
     rr_planned: rrPlanned,
     rr_actual: rr_actual,
     risk_pct: parseFloat(f.risk_pct) || acc.risk_pct,
-    risk_amount: f.risk_amount === '' ? null : parseFloat(f.risk_amount),
-    capital_used: f.capital_used === '' ? null : parseFloat(f.capital_used),
+    risk_amount: finalRiskAmount,
+    capital_used: finalCapitalUsed,
     tags: [...f.tags],
     note: f.note.trim(),
     ts: new Date().toLocaleDateString('it-IT'),
@@ -1384,6 +1476,9 @@ function startEdit(id) {
   const rrInput = (outcome === 'partial' || outcome === 'loss')
     ? String(Math.abs(t.rr_actual))
     : '';
+  // Se il trade ha risk_amount esplicito → fu salvato dal lato $
+  const hadDollar = t.risk_amount != null;
+  const resultDollar = hadDollar ? String(Math.abs(t.rr_actual * t.risk_amount)) : '';
   state.form = {
     direction: t.direction,
     asset: t.asset,
@@ -1392,6 +1487,8 @@ function startEdit(id) {
     risk_pct: String(t.risk_pct),
     risk_amount: t.risk_amount != null ? String(t.risk_amount) : '',
     capital_used: t.capital_used != null ? String(t.capital_used) : '',
+    result_dollar: resultDollar,
+    last_edited: hadDollar ? 'dollar' : 'pct',
     outcome: outcome,
     tp_respected: t.tp_respected,
     sl_respected: t.sl_respected,
@@ -1404,6 +1501,7 @@ function startEdit(id) {
   document.getElementById('rr-actual').value = rrInput;
   document.getElementById('risk-pct').value = state.form.risk_pct;
   document.getElementById('risk-amt').value = state.form.capital_used;
+  document.getElementById('result-dollar').value = resultDollar;
   document.getElementById('note').value = state.form.note;
   if (state.form.capital_used !== '') {
     document.getElementById('risk-amt').classList.remove('hidden');
@@ -1458,10 +1556,13 @@ function resetForm() {
   document.getElementById('rr-planned').value = '';
   document.getElementById('rr-actual').value = '';
   document.getElementById('risk-pct').value = String(acc.risk_pct);
+  document.getElementById('risk-pct').readOnly = false;
+  document.getElementById('risk-pct').classList.remove('computed');
   document.getElementById('risk-amt').value = '';
   document.getElementById('risk-amt').classList.add('hidden');
   document.getElementById('risk-amt-hint').classList.add('hidden');
   document.getElementById('risk-amt-toggle').textContent = '+ usa un capitale diverso per questo trade';
+  document.getElementById('result-dollar').value = '';
   document.getElementById('note').value = '';
   document.getElementById('note').classList.add('hidden');
   document.getElementById('note-toggle').textContent = '+ aggiungi nota libera';
@@ -1805,6 +1906,18 @@ function renderLog() {
     }
   }
 
+  // Casella Risultato $ (appare quando c'è un esito con P&L: win/partial/loss)
+  const showResult = state.form.outcome === 'win' || state.form.outcome === 'partial' || state.form.outcome === 'loss';
+  document.getElementById('result-dollar-wrap').classList.toggle('hidden', !showResult);
+  if (showResult) {
+    document.getElementById('result-dollar-label').textContent = state.form.outcome === 'loss' ? '$ perso' : '$ guadagnato';
+  }
+  // Entrambi i campi restano editabili: sincronizza in base all'ultimo modificato
+  const pctInput = document.getElementById('risk-pct');
+  pctInput.readOnly = false;
+  pctInput.classList.remove('computed');
+  syncRiskFields();
+
   // Tag chips
   const tagBox = document.getElementById('tag-chips');
   tagBox.innerHTML = '';
@@ -1882,9 +1995,16 @@ function renderDetail() {
   }
   const pnlSign = pnlSingle >= 0 ? '+' : '';
 
-  const riskedDisplay = t.capital_used != null
-    ? `${(t.risk_pct || acc.risk_pct)}% × $${t.capital_used} = $${((t.risk_pct || acc.risk_pct) / 100 * t.capital_used).toFixed(0)} (capitale custom)`
-    : `${(t.risk_pct || acc.risk_pct)}% × $${capAtTrade.toFixed(0)} = $${((t.risk_pct || acc.risk_pct) / 100 * capAtTrade).toFixed(0)}`;
+  let riskedDisplay;
+  if (t.risk_amount != null) {
+    // Trade salvato in modalità $ (rischio esplicito derivato dal risultato)
+    const pctOfCap = capAtTrade > 0 ? (t.risk_amount / capAtTrade) * 100 : 0;
+    riskedDisplay = `$${t.risk_amount.toFixed(2)} (${pctOfCap.toFixed(2)}% del capitale)`;
+  } else if (t.capital_used != null) {
+    riskedDisplay = `${(t.risk_pct || acc.risk_pct)}% × $${t.capital_used} = $${((t.risk_pct || acc.risk_pct) / 100 * t.capital_used).toFixed(0)} (capitale custom)`;
+  } else {
+    riskedDisplay = `${(t.risk_pct || acc.risk_pct)}% × $${capAtTrade.toFixed(0)} = $${((t.risk_pct || acc.risk_pct) / 100 * capAtTrade).toFixed(0)}`;
+  }
 
   // Etichetta esito (con fallback per trade legacy)
   const outcomeKey = t.outcome || deriveOutcome(t);
@@ -2031,6 +2151,8 @@ function renderStats() {
       </div>
     </div>
 
+    <button class="btn-secondary" id="copy-report-btn" style="width:100%; margin-bottom:14px;">📋 Copia report per analisi AI</button>
+
     <div class="panel">
       <div class="panel-title">Equity curve (capitale $${acc.capital.toFixed(0)})</div>
       <div id="equity-chart"></div>
@@ -2076,8 +2198,88 @@ function renderStats() {
 
   container.innerHTML = html;
 
+  const reportBtn = document.getElementById('copy-report-btn');
+  if (reportBtn) reportBtn.onclick = copyReport;
+
   drawEquityChart(equityCurveData(arr));
   drawBarChart(arr);
+}
+
+// Costruisce un report testuale compatto dell'account attivo, pensato per l'analisi AI
+function buildReport() {
+  const arr = filteredTrades().slice().sort((a, b) => b.iso.localeCompare(a.iso));
+  if (arr.length === 0) { showToast('Nessun trade da includere', 'error'); return null; }
+  const acc = currentAccount();
+  const s = calcStats(arr);
+  const curCap = currentCapital(acc.id);
+  const pf = isFinite(s.profitFactor) ? s.profitFactor.toFixed(2) : 'infinito (nessuna perdita)';
+  const omap = { win: 'WIN', be: 'BE', partial: 'PARZIALE', loss: 'LOSS' };
+  const L = [];
+
+  L.push('Ecco il report del mio trading journal. Analizzalo e dimmi: punti di forza, errori ricorrenti, e cosa migliorare concretamente.');
+  L.push('');
+  L.push(`=== ACCOUNT: ${acc.name} — generato il ${new Date().toLocaleDateString('it-IT')} ===`);
+  L.push(`Capitale: iniziale $${acc.capital.toFixed(0)} → attuale $${curCap.toFixed(0)}`);
+  L.push(`P&L totale: ${s.pnlDollar >= 0 ? '+' : ''}$${s.pnlDollar.toFixed(0)} (ROI account ${s.roi >= 0 ? '+' : ''}${s.roi.toFixed(1)}%, ROI sul rischiato ${s.roiRisked >= 0 ? '+' : ''}${s.roiRisked.toFixed(1)}%)`);
+  L.push('');
+  L.push(`PERFORMANCE (${s.total} trade)`);
+  L.push(`- Win rate: ${(s.winRate * 100).toFixed(0)}%  (${s.nWin} win · ${s.nPartial} parziali · ${s.nBe} BE · ${s.nLoss} loss)`);
+  L.push(`- Expectancy: ${s.expectancy >= 0 ? '+' : ''}${s.expectancy.toFixed(2)}R per trade`);
+  L.push(`- Profit factor: ${pf}`);
+  L.push(`- R/R medio: pianificato ${s.avgRRPlanned.toFixed(2)} / reale ${s.avgRRActual >= 0 ? '+' : ''}${s.avgRRActual.toFixed(2)}`);
+  L.push(`- TP pieno: ${s.tpResp != null ? (s.tpResp * 100).toFixed(0) + '% dei profitti' : 'n/d'} · SL contenuto: ${s.slResp != null ? (s.slResp * 100).toFixed(0) + '% delle perdite' : 'n/d'}`);
+
+  const bySetup = breakdownBy(arr, 'setup');
+  const byTag = breakdownBy(arr, 'tag');
+  const byAsset = breakdownBy(arr, 'asset');
+
+  if (bySetup.length) {
+    L.push(''); L.push('PER SETUP');
+    bySetup.forEach(b => L.push(`- ${b.key}: ${b.count} trade · WR ${(b.stats.winRate * 100).toFixed(0)}% · exp ${b.stats.expectancy >= 0 ? '+' : ''}${b.stats.expectancy.toFixed(2)}R`));
+  }
+  if (byTag.length) {
+    L.push(''); L.push('PER TAG');
+    byTag.forEach(b => L.push(`- ${b.key}: ${b.count} trade · WR ${(b.stats.winRate * 100).toFixed(0)}% · exp ${b.stats.expectancy >= 0 ? '+' : ''}${b.stats.expectancy.toFixed(2)}R`));
+  }
+  if (byAsset.length > 1) {
+    L.push(''); L.push('PER ASSET');
+    byAsset.forEach(b => L.push(`- ${b.key}: ${b.count} trade · exp ${b.stats.expectancy >= 0 ? '+' : ''}${b.stats.expectancy.toFixed(2)}R`));
+  }
+
+  L.push(''); L.push(`TRADE (${arr.length}, dal più recente)`);
+  L.push('formato: #n | data | direzione asset | setup | R pianif→reale | esito | tag');
+  arr.forEach(t => {
+    const o = omap[t.outcome || deriveOutcome(t)] || '?';
+    const tags = (t.tags || []).join(',') || '—';
+    const rr = `${t.rr_planned}→${t.rr_actual >= 0 ? '+' : ''}${t.rr_actual}R`;
+    const note = t.note ? ` | nota: ${t.note}` : '';
+    L.push(`#${t.n} | ${t.ts} | ${t.direction.toUpperCase()} ${t.asset} | ${t.setup || '—'} | ${rr} | ${o} | ${tags}${note}`);
+  });
+
+  return L.join('\n');
+}
+
+async function copyReport() {
+  const text = buildReport();
+  if (!text) return;
+  const n = filteredTrades().length;
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast(`✓ Report copiato (${n} trade) — incollalo in chat`, 'success');
+  } catch (e) {
+    // Fallback per browser/contesti senza Clipboard API
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e2) { ok = false; }
+    document.body.removeChild(ta);
+    showToast(ok ? `✓ Report copiato (${n} trade)` : 'Copia non riuscita', ok ? 'success' : 'error');
+  }
 }
 
 function renderBreakdown(items) {
@@ -2422,9 +2624,11 @@ function bindEvents() {
   document.getElementById('asset').onchange = e => { state.form.asset = e.target.value; };
 
   // RR planned, RR actual, Risk
-  document.getElementById('rr-planned').oninput = e => { state.form.rr_planned = e.target.value; };
-  document.getElementById('rr-actual').oninput = e => { state.form.rr_actual = e.target.value; };
-  document.getElementById('risk-pct').oninput = e => { state.form.risk_pct = e.target.value; };
+  document.getElementById('rr-planned').oninput = e => { state.form.rr_planned = e.target.value; syncRiskFields(); };
+  document.getElementById('rr-actual').oninput = e => { state.form.rr_actual = e.target.value; syncRiskFields(); };
+  document.getElementById('risk-pct').oninput = e => { state.form.risk_pct = e.target.value; state.form.last_edited = 'pct'; syncRiskFields(); };
+  // Risultato $ — guida il rischio % (e viceversa), aggiornamento reciproco in tempo reale
+  document.getElementById('result-dollar').oninput = e => { state.form.result_dollar = e.target.value; state.form.last_edited = 'dollar'; syncRiskFields(); };
 
   // Outcome
   document.getElementById('out-win').onclick = () => {
