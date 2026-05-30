@@ -460,6 +460,7 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
   font-size: 12px; color: var(--text); line-height: 1.6;
 }
 .insight-item.positive { border-left-style: dashed; color: var(--text-dim); }
+.insight-item.note { border-left-style: dotted; border-left-color: var(--text-muted); color: var(--text-dim); font-style: italic; }
 
 /* =========================================================
    SETTINGS
@@ -1736,11 +1737,34 @@ function calcStats(arr) {
   }, 0);
   const roiRisked = totalRisked > 0 ? (pnlDollar / totalRisked) * 100 : 0;
 
+  // --- Metriche avanzate per insight precisi ---
+  // Sui soli trade profittevoli (rr_actual > 0): pianificato vs reale.
+  // Qui "chiudere presto" ha senso; sulla media globale no (le perdite la falsano).
+  const avgPlannedWin = wins.length ? wins.reduce((a, t) => a + t.rr_planned, 0) / wins.length : 0;
+  const avgActualWin = wins.length ? wins.reduce((a, t) => a + t.rr_actual, 0) / wins.length : 0;
+  const rLeftOnTable = avgPlannedWin - avgActualWin; // R medio lasciato sul tavolo sui vincenti
+  const captureRatio = avgPlannedWin > 0 ? avgActualWin / avgPlannedWin : 1; // % di target catturato
+
+  // Direzione
+  const longCount = arr.filter(t => t.direction === 'long').length;
+  const shortCount = arr.filter(t => t.direction === 'short').length;
+
+  // Streak di perdite consecutive (ordine cronologico)
+  const chrono = arr.slice().sort((a, b) => a.iso.localeCompare(b.iso));
+  let maxLossStreak = 0, curLossStreak = 0, maxWinStreak = 0, curWinStreak = 0;
+  chrono.forEach(t => {
+    if (t.rr_actual < 0) { curLossStreak++; maxLossStreak = Math.max(maxLossStreak, curLossStreak); curWinStreak = 0; }
+    else if (t.rr_actual > 0) { curWinStreak++; maxWinStreak = Math.max(maxWinStreak, curWinStreak); curLossStreak = 0; }
+    else { curLossStreak = 0; curWinStreak = 0; }
+  });
+
   return {
     total, wins: wins.length, losses: losses.length,
     winRate, avgRRPlanned, avgRRActual, expectancy, profitFactor,
     tpResp, slResp, pnlDollar, roi, roiRisked, totalRisked, avgWin, avgLoss,
     nWin, nBe, nPartial, nLoss, profitable, slCleanCount,
+    avgPlannedWin, avgActualWin, rLeftOnTable, captureRatio,
+    longCount, shortCount, maxLossStreak, maxWinStreak,
   };
 }
 
@@ -2193,7 +2217,7 @@ function renderStats() {
 
   // Insights
   if (arr.length >= 5) {
-    html += renderInsights(s, byAsset, bySetup);
+    html += renderInsights(s, byAsset, bySetup, byTag);
   }
 
   container.innerHTML = html;
@@ -2300,39 +2324,98 @@ function renderBreakdown(items) {
   }).join('');
 }
 
-function renderInsights(s, byAsset, bySetup) {
+function renderInsights(s, byAsset, bySetup, byTag) {
+  const notes = [];
   const alerts = [];
   const positives = [];
-  if (s.avgRRActual < s.avgRRPlanned * 0.7) {
-    alerts.push(`R/R reale molto sotto il pianificato (${s.avgRRActual.toFixed(2)}R vs ${s.avgRRPlanned.toFixed(2)}R). Stai chiudendo i trade troppo presto.`);
+  const fmtR = r => (r >= 0 ? '+' : '') + r.toFixed(2) + 'R';
+  const pct = x => (x * 100).toFixed(0) + '%';
+
+  // NOTA — dimensione campione
+  if (s.total < 30) {
+    notes.push(`Campione di ${s.total} trade: ancora piccolo per conclusioni affidabili (servono ~30-40 trade perché le medie si stabilizzino). Tratta quanto segue come indizi, non verdetti.`);
   }
-  if (s.tpResp != null && s.tpResp < 0.5) {
-    alerts.push(`TP pieno preso solo nel ${(s.tpResp*100).toFixed(0)}% dei trade profittevoli: stai chiudendo prima del target.`);
+
+  // ALERT — chiudere i vincenti in anticipo (SOLO sui trade profittevoli, non sulla media globale)
+  if (s.wins >= 4 && s.captureRatio < 0.8) {
+    alerts.push(`Sui ${s.wins} vincenti catturi in media ${fmtR(s.avgActualWin)} su ${fmtR(s.avgPlannedWin)} pianificati (${pct(s.captureRatio)} del target): chiudi i vincenti in anticipo, ~${s.rLeftOnTable.toFixed(2)}R lasciati sul tavolo a trade.`);
   }
-  if (s.slResp != null && s.slResp < 0.7) {
-    alerts.push(`SL contenuto solo nel ${(s.slResp*100).toFixed(0)}% delle perdite: stai lasciando correre.`);
+
+  // ALERT — lasciar correre le perdite
+  if (s.nLoss >= 3 && s.slResp != null && s.slResp < 0.7) {
+    alerts.push(`SL contenuto solo nel ${pct(s.slResp)} delle ${s.nLoss} perdite: in ${s.nLoss - s.slCleanCount} casi hai superato lo stop pianificato. Stai lasciando correre.`);
   }
-  if (s.expectancy < 0) {
-    alerts.push(`Expectancy negativa (${s.expectancy.toFixed(2)}R per trade): il sistema attuale non è profittevole su grandi numeri.`);
+
+  // ALERT — expectancy negativa (guardia campione)
+  if (s.total >= 10 && s.expectancy < 0) {
+    alerts.push(`Expectancy negativa (${fmtR(s.expectancy)} per trade) su ${s.total} trade: il sistema così com'è perde sui grandi numeri.`);
   }
-  // Per asset/setup negativi
-  byAsset.filter(b => b.stats && b.count >= 3 && b.stats.expectancy < 0)
-    .forEach(b => alerts.push(`Asset ${b.key}: expectancy ${b.stats.expectancy.toFixed(2)}R su ${b.count} trade. Edge negativo.`));
+
+  // ALERT — striscia di perdite
+  if (s.maxLossStreak >= 4) {
+    alerts.push(`Striscia di ${s.maxLossStreak} perdite consecutive registrata: verifica che la size regga ${s.maxLossStreak}+ stop di fila senza intaccare troppo il capitale.`);
+  }
+
+  // ALERT — setup con edge negativo (>=3 trade)
   bySetup.filter(b => b.stats && b.count >= 3 && b.stats.expectancy < 0)
-    .forEach(b => alerts.push(`Setup "${b.key}": expectancy ${b.stats.expectancy.toFixed(2)}R su ${b.count} trade. Edge negativo.`));
+    .forEach(b => alerts.push(`Setup "${b.key}": ${fmtR(b.stats.expectancy)} su ${b.count} trade. Edge negativo, da rivedere o sospendere.`));
 
-  const tpOK = s.tpResp == null || s.tpResp >= 0.6;
-  const slOK = s.slResp == null || s.slResp >= 0.8;
-  if (s.expectancy > 0.2 && tpOK && slOK) {
-    positives.push(`Sistema profittevole e disciplinato: expectancy +${s.expectancy.toFixed(2)}R. Continua a raccogliere dati.`);
+  // ALERT — tag (comportamenti) con risultato negativo (>=2 occorrenze)
+  byTag.filter(b => b.stats && b.count >= 2 && b.stats.expectancy < 0)
+    .sort((a, b) => a.stats.expectancy - b.stats.expectancy)
+    .slice(0, 3)
+    .forEach(b => alerts.push(`Tag "${b.key}": ${fmtR(b.stats.expectancy)} su ${b.count} trade. Quando compare questo comportamento, il risultato peggiora.`));
+
+  // NOTA — sbilanciamento direzionale
+  const dirTot = s.longCount + s.shortCount;
+  if (s.total >= 5 && dirTot > 0) {
+    const longShare = s.longCount / dirTot;
+    if (longShare >= 0.85) {
+      notes.push(`${s.longCount} long su ${dirTot} trade: il sistema è quasi solo testato al rialzo. Parte del win rate può dipendere dal mercato in salita, non dall'edge. Da verificare anche in fasi ribassiste.`);
+    } else if (longShare <= 0.15) {
+      notes.push(`${s.shortCount} short su ${dirTot} trade: sistema testato quasi solo al ribasso. Edge non verificato al rialzo.`);
+    }
   }
 
-  if (alerts.length === 0 && positives.length === 0) return '';
+  // NOTA — profilo win rate vs R/R
+  if (s.total >= 10) {
+    if (s.winRate >= 0.65 && s.avgPlannedWin > 0 && s.avgPlannedWin < 1.2) {
+      notes.push(`Win rate alto (${pct(s.winRate)}) ma target piccoli (R/R medio sui vincenti ${s.avgPlannedWin.toFixed(2)}): poco margine, una serie di stop pieni può cancellare molti win.`);
+    }
+    if (s.winRate <= 0.4 && (s.profitFactor >= 1 || !isFinite(s.profitFactor))) {
+      notes.push(`Win rate basso (${pct(s.winRate)}) ma sistema in positivo: ti reggi sull'R/R alto. Richiede disciplina ferrea sugli stop e tenuta nelle strisce di perdite.`);
+    }
+  }
+
+  // POSITIVO — miglior setup
+  const bestSetup = bySetup.filter(b => b.stats && b.count >= 3).sort((a, b) => b.stats.expectancy - a.stats.expectancy)[0];
+  if (bestSetup && bestSetup.stats.expectancy > 0.3) {
+    positives.push(`Setup migliore: "${bestSetup.key}" con ${fmtR(bestSetup.stats.expectancy)} su ${bestSetup.count} trade (WR ${pct(bestSetup.stats.winRate)}). È dove hai più edge.`);
+  }
+
+  // POSITIVO — miglior tag
+  const bestTag = byTag.filter(b => b.stats && b.count >= 2).sort((a, b) => b.stats.expectancy - a.stats.expectancy)[0];
+  if (bestTag && bestTag.stats.expectancy > 0.5) {
+    positives.push(`Tag "${bestTag.key}": ${fmtR(bestTag.stats.expectancy)} su ${bestTag.count} trade. Comportamento da replicare.`);
+  }
+
+  // POSITIVO — disciplina sulle uscite
+  if (s.total >= 5 && s.tpResp != null && s.tpResp >= 0.8 && s.slResp != null && s.slResp >= 0.9) {
+    positives.push(`Disciplina sulle uscite ottima: TP pieno ${pct(s.tpResp)}, SL contenuto ${pct(s.slResp)}. Prendi i target e non lasci correre le perdite.`);
+  }
+
+  // POSITIVO — sistema profittevole e maturo
+  if (s.total >= 20 && s.expectancy > 0.2 && (s.profitFactor >= 1.5 || !isFinite(s.profitFactor))) {
+    positives.push(`Sistema profittevole su un campione decente: expectancy ${fmtR(s.expectancy)}, profit factor ${isFinite(s.profitFactor) ? s.profitFactor.toFixed(2) : '∞'}. Continua a raccogliere dati mantenendo la disciplina.`);
+  }
+
+  if (notes.length === 0 && alerts.length === 0 && positives.length === 0) return '';
   return `
     <div class="panel">
       <div class="panel-title">Insight</div>
       ${alerts.map(a => `<div class="insight-item">${a}</div>`).join('')}
       ${positives.map(p => `<div class="insight-item positive">✓ ${p}</div>`).join('')}
+      ${notes.map(n => `<div class="insight-item note">${n}</div>`).join('')}
     </div>
   `;
 }
