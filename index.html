@@ -497,13 +497,13 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
   padding: 12px;
 }
 .list-item {
-  display: flex; justify-content: space-between; align-items: center;
+  display: flex; align-items: center; gap: 6px;
   padding: 7px 0;
   font-size: 12px;
   border-bottom: 1px solid var(--border-subtle);
 }
 .list-item:last-child { border-bottom: none; }
-.list-item-name { color: var(--text); font-family: var(--font-mono); }
+.list-item-name { color: var(--text); font-family: var(--font-mono); flex: 1; min-width: 0; word-break: break-word; }
 .list-add-row {
   display: flex; gap: 6px; margin-top: 10px;
   padding-top: 10px; border-top: 1px solid var(--border);
@@ -2527,8 +2527,8 @@ function renderListEditor(elId, arr, key, placeholder) {
     row.className = 'list-item';
     row.innerHTML = `
       <span class="list-item-name">${escapeHtml(item)}</span>
-      <button class="btn-secondary" style="padding: 3px 8px; font-size: 11px;" data-edit="${i}">✎</button>
-      <button class="btn-secondary" style="padding: 3px 8px; font-size: 10px;" data-remove="${i}">×</button>
+      <button class="btn-secondary" style="flex:none; width:34px; padding:4px 0; font-size:12px; text-align:center;" data-edit="${i}">✎</button>
+      <button class="btn-secondary" style="flex:none; width:34px; padding:4px 0; font-size:12px; text-align:center;" data-remove="${i}">×</button>
     `;
     box.appendChild(row);
   });
@@ -2556,9 +2556,9 @@ function renderListEditor(elId, arr, key, placeholder) {
       const row = b.closest('.list-item');
       const current = state.config[key][i];
       row.innerHTML = `
-        <input class="list-add-input" type="text" data-rename-input style="flex:1;">
-        <button class="btn-secondary" style="padding: 3px 8px; font-size: 11px;" data-rename-ok>✓</button>
-        <button class="btn-secondary" style="padding: 3px 8px; font-size: 10px;" data-rename-cancel>×</button>
+        <input class="list-add-input" type="text" data-rename-input style="flex:1; min-width:0;">
+        <button class="btn-secondary" style="flex:none; width:34px; padding:4px 0; font-size:12px; text-align:center;" data-rename-ok>✓</button>
+        <button class="btn-secondary" style="flex:none; width:34px; padding:4px 0; font-size:12px; text-align:center;" data-rename-cancel>×</button>
       `;
       const inp = row.querySelector('[data-rename-input]');
       inp.value = current;
