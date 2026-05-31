@@ -2527,6 +2527,7 @@ function renderListEditor(elId, arr, key, placeholder) {
     row.className = 'list-item';
     row.innerHTML = `
       <span class="list-item-name">${escapeHtml(item)}</span>
+      <button class="btn-secondary" style="padding: 3px 8px; font-size: 11px;" data-edit="${i}">✎</button>
       <button class="btn-secondary" style="padding: 3px 8px; font-size: 10px;" data-remove="${i}">×</button>
     `;
     box.appendChild(row);
@@ -2547,6 +2548,32 @@ function renderListEditor(elId, arr, key, placeholder) {
       renderSettings();
     };
   });
+
+  // Rinomina inline: trasforma la riga in un campo editabile
+  box.querySelectorAll('[data-edit]').forEach(b => {
+    b.onclick = () => {
+      const i = parseInt(b.dataset.edit);
+      const row = b.closest('.list-item');
+      const current = state.config[key][i];
+      row.innerHTML = `
+        <input class="list-add-input" type="text" data-rename-input style="flex:1;">
+        <button class="btn-secondary" style="padding: 3px 8px; font-size: 11px;" data-rename-ok>✓</button>
+        <button class="btn-secondary" style="padding: 3px 8px; font-size: 10px;" data-rename-cancel>×</button>
+      `;
+      const inp = row.querySelector('[data-rename-input]');
+      inp.value = current;
+      inp.focus();
+      inp.setSelectionRange(inp.value.length, inp.value.length);
+      const confirm = () => renameConfigItem(key, i, inp.value);
+      row.querySelector('[data-rename-ok]').onclick = confirm;
+      row.querySelector('[data-rename-cancel]').onclick = () => renderSettings();
+      inp.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); confirm(); }
+        if (e.key === 'Escape') { e.preventDefault(); renderSettings(); }
+      });
+    };
+  });
+
   const input = box.querySelector('[data-add-input]');
   const addBtn = box.querySelector('[data-add-btn]');
   const doAdd = async () => {
@@ -2562,6 +2589,35 @@ function renderListEditor(elId, arr, key, placeholder) {
   };
   addBtn.onclick = doAdd;
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); doAdd(); } });
+}
+
+// Rinomina un setup o tag e propaga la modifica a TUTTI i trade (di ogni account)
+async function renameConfigItem(key, index, rawName) {
+  const newName = (rawName || '').trim();
+  const oldName = state.config[key][index];
+  if (!newName || newName === oldName) { renderSettings(); return; }
+  if (state.config[key].includes(newName)) {
+    showToast('Nome già presente', 'error');
+    return;
+  }
+  state.config[key][index] = newName;
+
+  // Aggiorna i trade salvati che usano il vecchio nome
+  let changed = 0;
+  for (const t of state.trades) {
+    if (key === 'setups') {
+      if (t.setup === oldName) { t.setup = newName; await dbPut(TRADES_STORE, t); changed++; }
+    } else { // tags
+      if (Array.isArray(t.tags) && t.tags.includes(oldName)) {
+        t.tags = [...new Set(t.tags.map(x => x === oldName ? newName : x))];
+        await dbPut(TRADES_STORE, t);
+        changed++;
+      }
+    }
+  }
+  await saveConfig();
+  showToast(`✓ Rinominato — ${changed} trade aggiornati`, 'success');
+  renderSettings();
 }
 
 function renderThemeGrid() {
