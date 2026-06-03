@@ -762,6 +762,11 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
       <div class="chip-group" id="setup-chips"></div>
     </div>
 
+    <div class="field">
+      <span class="field-label">Contesto mercato</span>
+      <div class="chip-group" id="context-chips"></div>
+    </div>
+
     <div class="field-row">
       <div class="field-col">
         <span class="field-label required">R/R pianificato *</span>
@@ -860,6 +865,11 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
   <div class="settings-section">
     <div class="settings-heading">Tag esecuzione</div>
     <div class="list-editor" id="tags-editor"></div>
+  </div>
+
+  <div class="settings-section">
+    <div class="settings-heading">Contesto mercato</div>
+    <div class="list-editor" id="contexts-editor"></div>
   </div>
 
   <div class="settings-section">
@@ -1042,6 +1052,7 @@ const DEFAULT_CONFIG = {
     'FOMO','Esitazione ingresso','Revenge trading',
     'Overtraded','Alta convinzione',
   ],
+  contexts: ['Bull','Bear','Chop'],
   theme: 'editorial',
   current_account_id: 'acc1',
 };
@@ -1062,6 +1073,7 @@ function makeEmptyForm() {
     direction: 'long',
     asset: '',
     setup: '',
+    context: '', // contesto di mercato: 'Bull' | 'Bear' | 'Chop' | ''
     rr_planned: '',
     risk_pct: '',
     risk_amount: '',
@@ -1166,7 +1178,7 @@ function syncRiskFields() {
 //  INDEXEDDB
 // ============================================================
 const DB_NAME = 'tradelog';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 const TRADES_STORE = 'trades';
 const CONFIG_STORE = 'config';
 
@@ -1204,6 +1216,19 @@ function openDB() {
           getReq.result.forEach(t => {
             if (!t.outcome) {
               t.outcome = deriveOutcome(t);
+              store.put(t);
+            }
+          });
+        };
+      }
+      // Migrazione v3 -> v4: aggiungi campo 'context' (vuoto) ai trade esistenti
+      if (e.oldVersion < 4 && db.objectStoreNames.contains(TRADES_STORE)) {
+        const store = tx.objectStore(TRADES_STORE);
+        const getReq = store.getAll();
+        getReq.onsuccess = () => {
+          getReq.result.forEach(t => {
+            if (t.context === undefined) {
+              t.context = null;
               store.put(t);
             }
           });
@@ -1284,6 +1309,7 @@ async function loadConfig() {
       if (!Array.isArray(state.config.assets)) state.config.assets = DEFAULT_CONFIG.assets;
       if (!Array.isArray(state.config.setups)) state.config.setups = DEFAULT_CONFIG.setups;
       if (!Array.isArray(state.config.tags)) state.config.tags = DEFAULT_CONFIG.tags;
+      if (!Array.isArray(state.config.contexts)) state.config.contexts = DEFAULT_CONFIG.contexts;
     } else {
       state.config = { ...DEFAULT_CONFIG };
       await saveConfig();
@@ -1407,6 +1433,7 @@ async function addTrade() {
       existing.direction = f.direction;
       existing.asset = f.asset;
       existing.setup = f.setup;
+      existing.context = f.context || null;
       existing.outcome = f.outcome;
       existing.tp_respected = disc.tp_respected;
       existing.sl_respected = disc.sl_respected;
@@ -1442,6 +1469,7 @@ async function addTrade() {
     direction: f.direction,
     asset: f.asset,
     setup: f.setup,
+    context: f.context || null,
     outcome: f.outcome,
     tp_respected: disc.tp_respected,
     sl_respected: disc.sl_respected,
@@ -1484,6 +1512,7 @@ function startEdit(id) {
     direction: t.direction,
     asset: t.asset,
     setup: t.setup,
+    context: t.context || '',
     rr_planned: String(t.rr_planned),
     risk_pct: String(t.risk_pct),
     risk_amount: t.risk_amount != null ? String(t.risk_amount) : '',
@@ -1908,6 +1937,17 @@ function renderLog() {
     setupBox.appendChild(btn);
   });
 
+  // Context chips (Bull/Bear/Chop) — selezione singola come il setup
+  const ctxBox = document.getElementById('context-chips');
+  ctxBox.innerHTML = '';
+  (state.config.contexts || []).forEach(c => {
+    const btn = document.createElement('button');
+    btn.className = 'chip' + (state.form.context === c ? ' active' : '');
+    btn.textContent = c;
+    btn.onclick = () => { state.form.context = state.form.context === c ? '' : c; render(); };
+    ctxBox.appendChild(btn);
+  });
+
   // Outcome chips
   document.getElementById('out-win').classList.toggle('active', state.form.outcome === 'win');
   document.getElementById('out-be').classList.toggle('active', state.form.outcome === 'be');
@@ -2061,6 +2101,10 @@ function renderDetail() {
           <div class="detail-field-label">Setup</div>
           <div class="detail-field-value italic">${escapeHtml(t.setup || '—')}</div>
         </div>
+        <div class="detail-grid-full">
+          <div class="detail-field-label">Contesto mercato</div>
+          <div class="detail-field-value italic">${escapeHtml(t.context || '—')}</div>
+        </div>
       </div>
     </div>
 
@@ -2192,7 +2236,15 @@ function renderStats() {
   const byAsset = breakdownBy(arr, 'asset');
   const bySetup = breakdownBy(arr, 'setup');
   const byTag = breakdownBy(arr, 'tag');
+  const byContext = breakdownBy(arr, 'context');
 
+  if (byContext.length > 1) {
+    html += `
+      <div class="panel">
+        <div class="panel-title">Breakdown per contesto mercato</div>
+        ${renderBreakdown(byContext)}
+      </div>`;
+  }
   if (byAsset.length > 1) {
     html += `
       <div class="panel">
@@ -2256,7 +2308,12 @@ function buildReport() {
   const bySetup = breakdownBy(arr, 'setup');
   const byTag = breakdownBy(arr, 'tag');
   const byAsset = breakdownBy(arr, 'asset');
+  const byContext = breakdownBy(arr, 'context');
 
+  if (byContext.length) {
+    L.push(''); L.push('PER CONTESTO MERCATO');
+    byContext.forEach(b => L.push(`- ${b.key}: ${b.count} trade · WR ${(b.stats.winRate * 100).toFixed(0)}% · exp ${b.stats.expectancy >= 0 ? '+' : ''}${b.stats.expectancy.toFixed(2)}R`));
+  }
   if (bySetup.length) {
     L.push(''); L.push('PER SETUP');
     bySetup.forEach(b => L.push(`- ${b.key}: ${b.count} trade · WR ${(b.stats.winRate * 100).toFixed(0)}% · exp ${b.stats.expectancy >= 0 ? '+' : ''}${b.stats.expectancy.toFixed(2)}R`));
@@ -2271,13 +2328,13 @@ function buildReport() {
   }
 
   L.push(''); L.push(`TRADE (${arr.length}, dal più recente)`);
-  L.push('formato: #n | data | direzione asset | setup | R pianif→reale | esito | tag');
+  L.push('formato: #n | data | direzione asset | setup | contesto | R pianif→reale | esito | tag');
   arr.forEach(t => {
     const o = omap[t.outcome || deriveOutcome(t)] || '?';
     const tags = (t.tags || []).join(',') || '—';
     const rr = `${t.rr_planned}→${t.rr_actual >= 0 ? '+' : ''}${t.rr_actual}R`;
     const note = t.note ? ` | nota: ${t.note}` : '';
-    L.push(`#${t.n} | ${t.ts} | ${t.direction.toUpperCase()} ${t.asset} | ${t.setup || '—'} | ${rr} | ${o} | ${tags}${note}`);
+    L.push(`#${t.n} | ${t.ts} | ${t.direction.toUpperCase()} ${t.asset} | ${t.setup || '—'} | ${t.context || '—'} | ${rr} | ${o} | ${tags}${note}`);
   });
 
   return L.join('\n');
@@ -2514,6 +2571,7 @@ function renderSettings() {
   renderListEditor('assets-editor', state.config.assets, 'assets', 'es. BTC/USDT');
   renderListEditor('setups-editor', state.config.setups, 'setups', 'es. Doppio minimo');
   renderListEditor('tags-editor', state.config.tags, 'tags', 'es. Trade da manuale');
+  renderListEditor('contexts-editor', state.config.contexts || [], 'contexts', 'es. Distribuzione');
 
   // Theme grid
   renderThemeGrid();
@@ -2607,6 +2665,8 @@ async function renameConfigItem(key, index, rawName) {
   for (const t of state.trades) {
     if (key === 'setups') {
       if (t.setup === oldName) { t.setup = newName; await dbPut(TRADES_STORE, t); changed++; }
+    } else if (key === 'contexts') {
+      if (t.context === oldName) { t.context = newName; await dbPut(TRADES_STORE, t); changed++; }
     } else { // tags
       if (Array.isArray(t.tags) && t.tags.includes(oldName)) {
         t.tags = [...new Set(t.tags.map(x => x === oldName ? newName : x))];
