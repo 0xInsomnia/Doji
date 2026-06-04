@@ -1246,18 +1246,6 @@ function currentFormR() {
 }
 
 // Calcola il rischio derivato dal risultato inserito: { riskDollar, pct } oppure null
-function currentDerivedRisk() {
-  const f = state.form;
-  const result = parseFloat(f.result_dollar);
-  const R = Math.abs(currentFormR());
-  if (!result || !R) return null;
-  const riskDollar = result / R;
-  const acc = currentAccount();
-  const cap = currentCapital(acc.id);
-  const pct = cap > 0 ? (riskDollar / cap) * 100 : 0;
-  return { riskDollar, pct };
-}
-
 // Sincronizza i campi Rischio % e Risultato $ in base all'ultimo modificato.
 // pct → $ : risultato = (rischio% / 100 × capitale) × |R|
 // $ → pct: rischio% = (risultato / |R|) / capitale × 100
