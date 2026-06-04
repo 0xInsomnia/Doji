@@ -204,6 +204,26 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
   border-style: dashed;
   cursor: default;
 }
+/* Banner anti-tilt: appare dopo 2+ stop consecutivi nella giornata */
+.tilt-banner {
+  padding: 11px 13px;
+  margin-bottom: 14px;
+  background: var(--loss);
+  color: var(--on-loss);
+  border: 2px solid var(--text);
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+[data-theme="editorial"] .tilt-banner,
+[data-theme="sepia"] .tilt-banner,
+[data-theme="carbon"] .tilt-banner,
+[data-theme="nocturne"] .tilt-banner {
+  background: transparent;
+  color: var(--loss);
+  border-color: var(--loss);
+}
 
 .select-native {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M3 4.5l3 3 3-3'/%3E%3C/svg%3E");
@@ -742,6 +762,7 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
       <span class="label">Modifica trade #<span id="edit-banner-n"></span></span>
       <button class="cancel-link" id="edit-cancel">Annulla</button>
     </div>
+    <div class="tilt-banner hidden" id="tilt-banner"></div>
 
     <div class="field-row">
       <div class="field-col" style="flex: 0; min-width: auto;">
@@ -1097,6 +1118,102 @@ function deriveOutcome(t) {
   // rr_actual > 0
   if (t.rr_planned != null && Math.abs(t.rr_actual - t.rr_planned) < 0.01) return 'win';
   return 'partial';
+}
+
+// ---- Banner anti-tilt ----
+// Stato di "tilt" della giornata su TUTTI gli account: stop consecutivi in coda + denaro perso oggi.
+// Il "giorno" è la data locale del telefono: a mezzanotte la data cambia e il conteggio riparte da solo.
+function todayTiltState() {
+  const today = new Date().toLocaleDateString('it-IT');
+  const todays = state.trades
+    .filter(t => t.ts === today)
+    .sort((a, b) => a.iso.localeCompare(b.iso));
+  let streak = 0;
+  for (let i = todays.length - 1; i >= 0; i--) {
+    if (todays[i].rr_actual < 0) streak++;
+    else break;
+  }
+  let lossToday = 0;
+  todays.forEach(t => {
+    const acc = state.config.accounts.find(a => a.id === t.account_id) || currentAccount();
+    let pnl;
+    if (t.risk_amount != null) pnl = t.rr_actual * t.risk_amount;
+    else {
+      const base = t.capital_used != null ? t.capital_used : currentCapital(t.account_id);
+      pnl = t.rr_actual * (t.risk_pct || acc.risk_pct) / 100 * base;
+    }
+    if (pnl < 0) lossToday += -pnl;
+  });
+  return { streak, lossToday };
+}
+
+function moneyTier(loss) {
+  if (loss < 20) return 'low';
+  if (loss <= 80) return 'mid';
+  return 'high';
+}
+
+// Frasi: [livello stop t2/t3/t4][entità perdita low/mid/high]. $X = denaro perso oggi.
+const TILT_MSGS = {
+  t2: {
+    low: [
+      'Due stop ma solo $X. Hai sbagliato poco. Fermati prima di sbagliare tanto.',
+      '2 rossi leggeri. C\'è ancora una via d\'uscita, e si chiama "spegni lo schermo".',
+      'Due stop, $X. Briciole. Ma le briciole di oggi sono la fame di domani se continui.',
+    ],
+    mid: [
+      'Due stop e $X in meno. Il terzo trade non te li ridà: ti raddoppia il problema.',
+      '2 perdite, $X. Il mercato ti fa lo sconto. Non chiedere il prezzo pieno.',
+      'Due rossi, $X andati. Ora sei tu il liquidity grab di qualcun altro.',
+    ],
+    high: [
+      'Solo 2 stop ma già $X?! Che size usi, quella del coraggio o quella dell\'incoscienza?',
+      '$X in due trade. Non è tilt, è generosità. Il mercato ti ringrazia.',
+      'Due stop, $X bruciati. A questa velocità il terzo trade è autolesionismo puro.',
+    ],
+  },
+  t3: {
+    low: [
+      'Tre di fila per $X. Pochi soldi, ma il messaggio è chiaro: oggi non è giornata.',
+      'Terzo stop, $X. Danno piccolo, avvertimento grande. Chiudi.',
+      '3 rossi, $X. Stai vincendo a perdere. Categoria di nicchia, ma la domini.',
+    ],
+    mid: [
+      'Tris di rossi, $X. Questo non è trading, è una donazione con bonifico ricorrente.',
+      'Tre stop, $X. Cerchi il bottom? L\'hai trovato: è il tuo umore.',
+      '3 perdite, $X. Il revenge sta vincendo 3 a 0. Vuoi davvero giocare i supplementari?',
+    ],
+    high: [
+      '$X in tre trade. Hai trovato un modo per perdere più veloce del mercato stesso. Bravo.',
+      'Tre stop, $X in fumo. Stacca. Il quarto non è un trade, è un capriccio costoso.',
+      '$X e tre rossi. Il tuo conto ha appena chiesto asilo politico.',
+    ],
+  },
+  t4: {
+    low: [
+      'Quarto stop per $X. Perdere poco quattro volte di fila è un talento. Sprecalo domani.',
+      '4 rossi, $X. Perdi soldi e tempo. Almeno il tempo salvalo: spegni.',
+      'Quattro di fila, $X. Insistere su poco è comunque insistere. Stop.',
+    ],
+    mid: [
+      '$X in quattro trade. Il pulsante "compra" lo usi benissimo. Quello "basta" è lì di fianco.',
+      'Quarto stop, $X. Il tuo broker sta valutando un regalo di Natale a tuo nome.',
+      '4 rossi, $X. Non è più una giornata storta, è una scelta di vita. Cambiala oggi.',
+    ],
+    high: [
+      '$X in quattro trade. Hai reinventato la macchina brucia-soldi. Brevettala, almeno.',
+      'Quinto? Sesto? $X persi e ancora qui. Il problema non è il grafico. Sei tu, con affetto.',
+      '$X in fumo oggi. Chiudi. Tutto. Adesso. Te lo dice l\'app, visto che a te non dai retta.',
+    ],
+  },
+};
+
+function tiltBannerText(streak, lossToday) {
+  const money = '$' + Math.round(lossToday);
+  const sKey = streak >= 4 ? 't4' : (streak === 3 ? 't3' : 't2');
+  const pool = TILT_MSGS[sKey][moneyTier(lossToday)];
+  const idx = (streak * 7 + Math.round(lossToday)) % pool.length;
+  return pool[idx].replace(/\$X/g, money);
 }
 
 // Deriva tp_respected/sl_respected da outcome (per stats backward-compat)
@@ -1882,6 +1999,18 @@ function render() {
     editBanner.classList.add('hidden');
     addBtn.textContent = '+ Aggiungi trade';
     formTitle.textContent = 'Nuovo trade';
+  }
+
+  // Banner anti-tilt (solo in inserimento nuovo trade, non in modifica)
+  const tiltBanner = document.getElementById('tilt-banner');
+  if (tiltBanner) {
+    const tilt = todayTiltState();
+    if (!state.editingId && tilt.streak >= 2) {
+      tiltBanner.textContent = tiltBannerText(tilt.streak, tilt.lossToday);
+      tiltBanner.classList.remove('hidden');
+    } else {
+      tiltBanner.classList.add('hidden');
+    }
   }
 
   if (state.view === 'log') renderLog();
