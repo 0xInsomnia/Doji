@@ -204,7 +204,14 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
   border-style: dashed;
   cursor: default;
 }
-/* Banner anti-tilt: appare dopo 2+ stop consecutivi nella giornata */
+/* Conferma eliminazione inline nella riga trade (tap lungo) */
+.row-confirm {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; width: 100%; flex-wrap: wrap;
+}
+.row-confirm-label { font-size: 13px; font-weight: 600; color: var(--text); }
+.row-confirm-actions { display: flex; gap: 8px; }
+.row-confirm-actions button { padding: 6px 14px; font-size: 12px; }
 .tilt-banner {
   padding: 11px 13px;
   margin-bottom: 14px;
@@ -2156,12 +2163,50 @@ function renderLog() {
     list.appendChild(row);
   });
   list.querySelectorAll('[data-open]').forEach(el => {
-    el.onclick = () => {
-      state.detailId = parseInt(el.dataset.open);
+    let pressTimer = null;
+    let longPressed = false;
+    const id = parseInt(el.dataset.open);
+
+    const startPress = () => {
+      longPressed = false;
+      pressTimer = setTimeout(() => {
+        longPressed = true;
+        if (navigator.vibrate) navigator.vibrate(40);
+        showRowDeleteConfirm(el, id);
+      }, 700);
+    };
+    const cancelPress = () => { if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } };
+
+    el.addEventListener('touchstart', startPress, { passive: true });
+    el.addEventListener('touchend', cancelPress);
+    el.addEventListener('touchmove', cancelPress, { passive: true });
+    el.addEventListener('mousedown', startPress);
+    el.addEventListener('mouseup', cancelPress);
+    el.addEventListener('mouseleave', cancelPress);
+
+    el.onclick = (e) => {
+      if (longPressed) { e.preventDefault(); e.stopPropagation(); longPressed = false; return; }
+      state.detailId = id;
       state.view = 'detail';
       render();
     };
   });
+}
+
+// Conferma inline di eliminazione sulla riga (dopo tap lungo)
+function showRowDeleteConfirm(row, id) {
+  const t = state.trades.find(x => x.id === id);
+  if (!t) return;
+  row.innerHTML = `
+    <div class="row-confirm">
+      <span class="row-confirm-label">Eliminare il trade #${t.n}?</span>
+      <div class="row-confirm-actions">
+        <button class="btn-secondary" data-confirm-cancel>Annulla</button>
+        <button class="btn-danger" data-confirm-del>Elimina</button>
+      </div>
+    </div>`;
+  row.querySelector('[data-confirm-del]').onclick = (e) => { e.stopPropagation(); deleteTrade(id); };
+  row.querySelector('[data-confirm-cancel]').onclick = (e) => { e.stopPropagation(); render(); };
 }
 
 function renderDetail() {
