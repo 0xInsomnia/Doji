@@ -1,5 +1,5 @@
 // Doji service worker — cache offline-first
-const CACHE = 'doji-v22';
+const CACHE = 'doji-v23';
 const ASSETS = [
   './',
   './index.html',
