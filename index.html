@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon" href="./icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@700;800&family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&family=IBM+Plex+Mono:wght@300;400;500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Cormorant+Garamond:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
 <style>
 /* =========================================================
    CSS VARIABLES (impostate via JS al cambio tema)
@@ -159,12 +159,6 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
   font-family: var(--font-mono);
   margin-bottom: 14px;
 }
-.panel-title.italic {
-  font-family: var(--font-display);
-  font-style: italic; font-size: 14px;
-  text-transform: none; letter-spacing: 0;
-  color: var(--text-dim);
-}
 
 /* =========================================================
    FORM
@@ -197,13 +191,6 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
 .input.big-num { font-size: 14px; font-weight: 600; }
 .textarea { font-family: var(--font-main); resize: vertical; min-height: 60px; }
 
-/* Campo calcolato in sola lettura (rischio % derivato dal risultato $) */
-.input.computed {
-  background: var(--surface-alt);
-  color: var(--text-dim);
-  border-style: dashed;
-  cursor: default;
-}
 /* Conferma eliminazione inline nella riga trade (tap lungo) */
 .row-confirm {
   display: flex; align-items: center; justify-content: space-between;
@@ -223,15 +210,36 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
   font-weight: 600;
   line-height: 1.45;
 }
-[data-theme="editorial"] .tilt-banner,
-[data-theme="sepia"] .tilt-banner,
-[data-theme="carbon"] .tilt-banner,
-[data-theme="nocturne"] .tilt-banner,
-[data-theme="aviator"] .tilt-banner,
-[data-theme="stratosphere"] .tilt-banner {
+[data-mono="true"] .tilt-banner {
   background: transparent;
   color: var(--text);
   border-color: var(--text);
+}
+
+/* Promemoria backup (soft, non allarmante) */
+.backup-banner {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 9px 12px;
+  margin-bottom: 14px;
+  background: var(--surface-alt);
+  border: 1px dashed var(--border-subtle);
+  border-radius: var(--radius);
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+.backup-banner .backup-action {
+  flex: none;
+  font-size: 12px; font-weight: 600;
+  color: var(--text);
+  text-decoration: underline;
+  padding: 2px 4px;
+}
+.backup-banner .backup-dismiss {
+  flex: none;
+  font-size: 14px;
+  color: var(--text-muted);
+  padding: 2px 6px;
 }
 
 .select-native {
@@ -265,12 +273,7 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
 }
 .chip.win.active { background: var(--win); color: var(--on-win); border-color: var(--win); }
 .chip.loss.active { background: var(--loss); color: var(--on-loss); border-color: var(--text); }
-[data-theme="editorial"] .chip.loss.active,
-[data-theme="sepia"] .chip.loss.active,
-[data-theme="carbon"] .chip.loss.active,
-[data-theme="nocturne"] .chip.loss.active,
-[data-theme="aviator"] .chip.loss.active,
-[data-theme="stratosphere"] .chip.loss.active {
+[data-mono="true"] .chip.loss.active {
   background: transparent; color: var(--text);
   border: 1px solid var(--text);
 }
@@ -345,11 +348,6 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
   min-width: 50px; text-align: right;
 }
 .trade-ts { color: var(--text-muted); font-size: 9px; font-family: var(--font-mono); }
-.trade-del {
-  color: var(--text-muted); font-size: 18px;
-  padding: 0 4px; line-height: 1;
-}
-.trade-del:hover { color: var(--text); }
 
 .trade-tags {
   display: flex; gap: 4px; flex-wrap: wrap;
@@ -377,45 +375,20 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
 .val-zero { color: var(--neutral); font-weight: 400; }
 
 /* Tema editorial e altri mono: filled vs outlined */
-[data-theme="editorial"] .val-pos,
-[data-theme="sepia"] .val-pos,
-[data-theme="carbon"] .val-pos,
-[data-theme="nocturne"] .val-pos,
-[data-theme="aviator"] .val-pos,
-[data-theme="stratosphere"] .val-pos {
+[data-mono="true"] .val-pos {
   color: var(--text); font-weight: 800;
 }
-[data-theme="editorial"] .val-neg,
-[data-theme="sepia"] .val-neg,
-[data-theme="carbon"] .val-neg,
-[data-theme="nocturne"] .val-neg,
-[data-theme="aviator"] .val-neg,
-[data-theme="stratosphere"] .val-neg {
+[data-mono="true"] .val-neg {
   color: transparent; -webkit-text-stroke: 1px var(--text);
   font-weight: 800;
 }
-[data-theme="editorial"] .val-zero,
-[data-theme="sepia"] .val-zero,
-[data-theme="carbon"] .val-zero,
-[data-theme="nocturne"] .val-zero,
-[data-theme="aviator"] .val-zero,
-[data-theme="stratosphere"] .val-zero {
+[data-mono="true"] .val-zero {
   color: var(--text-muted); font-weight: 400;
 }
-[data-theme="editorial"] .trade-dir.long,
-[data-theme="sepia"] .trade-dir.long,
-[data-theme="carbon"] .trade-dir.long,
-[data-theme="nocturne"] .trade-dir.long,
-[data-theme="aviator"] .trade-dir.long,
-[data-theme="stratosphere"] .trade-dir.long {
+[data-mono="true"] .trade-dir.long {
   color: var(--text); font-weight: 800;
 }
-[data-theme="editorial"] .trade-dir.short,
-[data-theme="sepia"] .trade-dir.short,
-[data-theme="carbon"] .trade-dir.short,
-[data-theme="nocturne"] .trade-dir.short,
-[data-theme="aviator"] .trade-dir.short,
-[data-theme="stratosphere"] .trade-dir.short {
+[data-mono="true"] .trade-dir.short {
   color: transparent; -webkit-text-stroke: 1px var(--text);
   font-weight: 800;
 }
@@ -445,6 +418,8 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
   font-family: var(--font-mono); line-height: 1;
 }
 .stat-sub { font-size: 10px; color: var(--text-muted); margin-top: 5px; font-family: var(--font-mono); }
+/* Variante per i box con due valori affiancati: evita l'overflow sugli schermi stretti */
+.stat-value.small { font-size: 16px; line-height: 1.2; }
 
 /* Filtri stats */
 .filter-bar {
@@ -603,13 +578,11 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
    ========================================================= */
 .hidden { display: none !important; }
 .empty {
-  color: var(--text-muted); font-size: 13px;
+  color: var(--text-muted); font-size: 16px;
   text-align: center; padding: 40px 0;
   font-style: italic;
   font-family: var(--font-display);
 }
-.spacer { height: 8px; }
-.divider { height: 1px; background: var(--border-subtle); margin: 14px 0; }
 
 /* Collapsible note */
 .note-toggle {
@@ -700,14 +673,6 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
   letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600;
 }
 
-/* Modifica marker */
-.modified-marker {
-  color: var(--text-dim);
-  font-size: 10px;
-  margin-left: 4px;
-  font-family: var(--font-mono);
-}
-
 /* Trade row tappabile */
 .trade-row {
   cursor: pointer;
@@ -743,7 +708,7 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
 }
 </style>
 </head>
-<body data-theme="editorial">
+<body data-theme="editorial" data-mono="true">
 
 <!-- HEADER -->
 <div class="header">
@@ -767,6 +732,12 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
 
 <!-- ================ LOG VIEW ================ -->
 <div id="log-view">
+  <!-- PROMEMORIA BACKUP -->
+  <div class="backup-banner hidden" id="backup-banner">
+    <span id="backup-banner-text"></span>
+    <button class="backup-action" id="backup-banner-export">Esporta ora</button>
+    <button class="backup-dismiss" id="backup-banner-dismiss" title="Nascondi">×</button>
+  </div>
   <!-- FORM -->
   <div class="panel">
     <div class="panel-title" id="form-title">Nuovo trade</div>
@@ -984,6 +955,7 @@ const themes = {
     fontDisplay:"'Cormorant Garamond', serif",
     radius:'2px',
     themeColor:'#FAFAF7',
+    mono: true,
   },
   blackmono: {
     name: 'Pure Black',
@@ -998,6 +970,7 @@ const themes = {
     fontDisplay:"'IBM Plex Mono', monospace",
     radius:'0px',
     themeColor:'#000000',
+    mono: false,
   },
   sepia: {
     name: 'Sepia',
@@ -1012,6 +985,7 @@ const themes = {
     fontDisplay:"'Cormorant Garamond', serif",
     radius:'2px',
     themeColor:'#F5EFE0',
+    mono: true,
   },
   carbon: {
     name: 'Carbon',
@@ -1026,6 +1000,7 @@ const themes = {
     fontDisplay:"'Cormorant Garamond', serif",
     radius:'2px',
     themeColor:'#1A1A1A',
+    mono: true,
   },
   nocturne: {
     name: 'Nocturne',
@@ -1040,6 +1015,7 @@ const themes = {
     fontDisplay:"'Cormorant Garamond', serif",
     radius:'2px',
     themeColor:'#0D1830',
+    mono: true,
   },
   aviator: {
     name: 'Aviator',
@@ -1054,6 +1030,7 @@ const themes = {
     fontDisplay:"'Cormorant Garamond', serif",
     radius:'2px',
     themeColor:'#0E0E0C',
+    mono: true,
   },
   stratosphere: {
     name: 'Stratosphere',
@@ -1068,6 +1045,7 @@ const themes = {
     fontDisplay:"'Cormorant Garamond', serif",
     radius:'2px',
     themeColor:'#10141A',
+    mono: true,
   },
 };
 
@@ -1094,6 +1072,7 @@ function applyTheme(name) {
   root.style.setProperty('--font-display', t.fontDisplay);
   root.style.setProperty('--radius', t.radius);
   document.body.setAttribute('data-theme', name);
+  document.body.setAttribute('data-mono', t.mono ? 'true' : 'false');
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.setAttribute('content', t.themeColor);
 }
@@ -1150,7 +1129,11 @@ function makeEmptyForm() {
     timeframe: '', // timeframe di esecuzione: '15m' | '1h' | '4h' | ''
     rr_planned: '',
     risk_pct: '',
+    // risk_amount NON è editabile dall'UI: esiste solo per preservare il rischio $
+    // di un trade salvato in modalità dollaro quando lo si modifica (es. esito BE,
+    // dove useDollar è falso e il valore va ripreso pari pari da startEdit).
     risk_amount: '',
+    // capital_used è ciò che scrive l'input "capitale custom" (id risk-amt).
     capital_used: '',
     result_dollar: '',
     last_edited: 'pct', // quale campo guida: 'pct' o 'dollar'
@@ -1186,13 +1169,22 @@ function todayTiltState() {
     if (todays[i].rr_actual < 0) streak++;
     else break;
   }
+  // Cache: trade ordinati per account (per calcolare il capitale al momento del trade)
+  const sortedByAcc = {};
   let lossToday = 0;
   todays.forEach(t => {
     const acc = state.config.accounts.find(a => a.id === t.account_id) || currentAccount();
     let pnl;
     if (t.risk_amount != null) pnl = t.rr_actual * t.risk_amount;
     else {
-      const base = t.capital_used != null ? t.capital_used : currentCapital(t.account_id);
+      if (!sortedByAcc[t.account_id]) {
+        sortedByAcc[t.account_id] = state.trades
+          .filter(x => x.account_id === t.account_id)
+          .sort((a, b) => a.iso.localeCompare(b.iso));
+      }
+      const base = t.capital_used != null
+        ? t.capital_used
+        : capitalAtTrade(t, sortedByAcc[t.account_id], acc);
       pnl = t.rr_actual * (t.risk_pct || acc.risk_pct) / 100 * base;
     }
     if (pnl < 0) lossToday += -pnl;
@@ -1792,8 +1784,6 @@ function resetForm() {
   document.getElementById('rr-planned').value = '';
   document.getElementById('rr-actual').value = '';
   document.getElementById('risk-pct').value = String(acc.risk_pct);
-  document.getElementById('risk-pct').readOnly = false;
-  document.getElementById('risk-pct').classList.remove('computed');
   document.getElementById('risk-amt').value = '';
   document.getElementById('risk-amt').classList.add('hidden');
   document.getElementById('risk-amt-hint').classList.add('hidden');
@@ -1833,7 +1823,11 @@ function exportData() {
   a.href = url; a.download = `tradelog-backup-${date}.json`;
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(url);
+  // Memorizza la data dell'export per il promemoria mensile
+  state.config.last_export_iso = new Date().toISOString();
+  saveConfig().catch(e => console.error('saveConfig post-export', e));
   showToast(`✓ ${state.trades.length} trade esportati`, 'success');
+  render();
 }
 
 function importData(file) {
@@ -2028,10 +2022,17 @@ function breakdownBy(arr, key) {
   arr.forEach(t => {
     const k = key === 'tag' ? null : (t[key] || '—');
     if (key === 'tag') {
-      (t.tags || []).forEach(tag => {
-        groups[tag] = groups[tag] || [];
-        groups[tag].push(t);
-      });
+      const tgs = t.tags || [];
+      if (tgs.length === 0) {
+        // Trade senza tag: gruppo '—' (la group-view lo mostra come "nessuno")
+        groups['—'] = groups['—'] || [];
+        groups['—'].push(t);
+      } else {
+        tgs.forEach(tag => {
+          groups[tag] = groups[tag] || [];
+          groups[tag].push(t);
+        });
+      }
     } else {
       groups[k] = groups[k] || [];
       groups[k].push(t);
@@ -2072,7 +2073,9 @@ function render() {
   const isSub = state.view === 'settings' || state.view === 'detail' || state.view === 'group';
   document.getElementById('view-tabs').classList.toggle('hidden', isSub);
   document.getElementById('account-tabs').classList.toggle('hidden', isSub);
-  document.getElementById('footer-back').style.display = (state.view === 'settings') ? 'inline-block' : 'none';
+  const showFooter = state.view === 'settings';
+  document.getElementById('footer-actions').classList.toggle('hidden', !showFooter);
+  document.getElementById('footer-back').style.display = showFooter ? 'inline-block' : 'none';
 
   // Edit banner
   const editBanner = document.getElementById('edit-banner');
@@ -2104,11 +2107,40 @@ function render() {
     }
   }
 
+  // Promemoria backup mensile (>30 giorni dall'ultimo export, o mai esportato)
+  renderBackupBanner();
+
   if (state.view === 'log') renderLog();
   else if (state.view === 'stats') renderStats();
   else if (state.view === 'detail') renderDetail();
   else if (state.view === 'settings') renderSettings();
   else if (state.view === 'group') renderGroup();
+}
+
+// Promemoria backup: appare nella log view se non esporti da >30 giorni.
+// La "×" lo nasconde fino alla prossima apertura dell'app (niente nag continuo).
+const BACKUP_REMINDER_DAYS = 30;
+function renderBackupBanner() {
+  const banner = document.getElementById('backup-banner');
+  if (!banner) return;
+  const show = (() => {
+    if (state.loading || state.backupBannerDismissed) return false;
+    if (state.trades.length === 0) return false;
+    const last = state.config.last_export_iso;
+    if (!last) return true; // dati presenti, mai esportato
+    const days = (Date.now() - new Date(last).getTime()) / 86400000;
+    return days > BACKUP_REMINDER_DAYS;
+  })();
+  if (!show) { banner.classList.add('hidden'); return; }
+  const last = state.config.last_export_iso;
+  const txt = document.getElementById('backup-banner-text');
+  if (!last) {
+    txt.textContent = `📥 ${state.trades.length} trade salvati solo sul telefono: non hai mai fatto un backup.`;
+  } else {
+    const days = Math.floor((Date.now() - new Date(last).getTime()) / 86400000);
+    txt.textContent = `📥 Ultimo backup ${days} giorni fa. I dati vivono solo sul telefono.`;
+  }
+  banner.classList.remove('hidden');
 }
 
 function renderAccountTabs() {
@@ -2119,6 +2151,11 @@ function renderAccountTabs() {
     btn.className = 'account-tab' + (a.id === state.config.current_account_id ? ' active' : '');
     btn.textContent = a.name;
     btn.onclick = async () => {
+      // Cambiare account mentre si modifica un trade è ambiguo: annulla l'edit
+      if (state.editingId) {
+        state.editingId = null;
+        resetForm();
+      }
       state.config.current_account_id = a.id;
       state.form.risk_pct = String(a.risk_pct);
       document.getElementById('risk-pct').value = String(a.risk_pct);
@@ -2209,9 +2246,6 @@ function renderLog() {
     document.getElementById('result-dollar-label').textContent = state.form.outcome === 'loss' ? '$ perso' : '$ guadagnato';
   }
   // Entrambi i campi restano editabili: sincronizza in base all'ultimo modificato
-  const pctInput = document.getElementById('risk-pct');
-  pctInput.readOnly = false;
-  pctInput.classList.remove('computed');
   syncRiskFields();
 
   // Tag chips — due gruppi: Esecuzione e Errori (un solo array form.tags sotto)
@@ -2494,6 +2528,12 @@ function renderStats() {
   const pnlSign = s.pnlDollar >= 0 ? '+' : '';
   const roiSign = s.roi >= 0 ? '+' : '';
 
+  const f0 = state.filters;
+  const filtersActive = f0.dateRange !== 'all' || f0.asset !== 'all' || f0.setup !== 'all' || f0.tag !== 'all';
+  const eqTitle = filtersActive
+    ? 'Equity curve — solo trade filtrati (curva ipotetica)'
+    : `Equity curve (capitale $${acc.capital.toFixed(0)})`;
+
   let html = `
     <div class="stat-grid">
       <div class="stat-box">
@@ -2518,12 +2558,12 @@ function renderStats() {
       </div>
       <div class="stat-box">
         <div class="stat-label">R/R Pianif. / Reale</div>
-        <div class="stat-value">${s.avgRRPlanned.toFixed(2)} / <span class="${s.avgRRActual >= 0 ? 'val-pos' : 'val-neg'}">${s.avgRRActual >= 0 ? '+' : ''}${s.avgRRActual.toFixed(2)}</span></div>
+        <div class="stat-value small">${s.avgRRPlanned.toFixed(2)} / <span class="${s.avgRRActual >= 0 ? 'val-pos' : 'val-neg'}">${s.avgRRActual >= 0 ? '+' : ''}${s.avgRRActual.toFixed(2)}</span></div>
         <div class="stat-sub">media R</div>
       </div>
       <div class="stat-box">
         <div class="stat-label">TP pieno / SL contenuto</div>
-        <div class="stat-value">${s.tpResp != null ? `<span class="${s.tpResp >= 0.6 ? 'val-pos' : 'val-neg'}">${(s.tpResp*100).toFixed(0)}%</span>` : `<span class="val-zero">—</span>`} / ${s.slResp != null ? `<span class="${s.slResp >= 0.8 ? 'val-pos' : 'val-neg'}">${(s.slResp*100).toFixed(0)}%</span>` : `<span class="val-zero">—</span>`}</div>
+        <div class="stat-value small">${s.tpResp != null ? `<span class="${s.tpResp >= 0.6 ? 'val-pos' : 'val-neg'}">${(s.tpResp*100).toFixed(0)}%</span>` : `<span class="val-zero">—</span>`} / ${s.slResp != null ? `<span class="${s.slResp >= 0.8 ? 'val-pos' : 'val-neg'}">${(s.slResp*100).toFixed(0)}%</span>` : `<span class="val-zero">—</span>`}</div>
         <div class="stat-sub">${s.nWin}/${s.profitable} prof · ${s.slCleanCount}/${s.nLoss} loss</div>
       </div>
     </div>
@@ -2531,7 +2571,7 @@ function renderStats() {
     <button class="btn-secondary" id="copy-report-btn" style="width:100%; margin-bottom:14px;">📋 Copia report per analisi AI</button>
 
     <div class="panel">
-      <div class="panel-title">Equity curve (capitale $${acc.capital.toFixed(0)})</div>
+      <div class="panel-title">${eqTitle}</div>
       <div id="equity-chart"></div>
     </div>
 
@@ -2747,8 +2787,8 @@ function renderInsights(s, byAsset, bySetup, byTag) {
   bySetup.filter(b => b.stats && b.count >= 3 && b.stats.expectancy < 0)
     .forEach(b => alerts.push(`Setup "${b.key}": ${fmtR(b.stats.expectancy)} su ${b.count} trade. Edge negativo, da rivedere o sospendere.`));
 
-  // ALERT — tag (comportamenti) con risultato negativo (>=2 occorrenze)
-  byTag.filter(b => b.stats && b.count >= 2 && b.stats.expectancy < 0)
+  // ALERT — tag (comportamenti) con risultato negativo (>=2 occorrenze); '—' = senza tag, escluso
+  byTag.filter(b => b.key !== '—' && b.stats && b.count >= 2 && b.stats.expectancy < 0)
     .sort((a, b) => a.stats.expectancy - b.stats.expectancy)
     .slice(0, 3)
     .forEach(b => alerts.push(`Tag "${b.key}": ${fmtR(b.stats.expectancy)} su ${b.count} trade. Quando compare questo comportamento, il risultato peggiora.`));
@@ -2781,7 +2821,7 @@ function renderInsights(s, byAsset, bySetup, byTag) {
   }
 
   // POSITIVO — miglior tag
-  const bestTag = byTag.filter(b => b.stats && b.count >= 2).sort((a, b) => b.stats.expectancy - a.stats.expectancy)[0];
+  const bestTag = byTag.filter(b => b.key !== '—' && b.stats && b.count >= 2).sort((a, b) => b.stats.expectancy - a.stats.expectancy)[0];
   if (bestTag && bestTag.stats.expectancy > 0.5) {
     positives.push(`Tag "${bestTag.key}": ${fmtR(bestTag.stats.expectancy)} su ${bestTag.count} trade. Comportamento da replicare.`);
   }
@@ -2820,13 +2860,13 @@ function renderFilters() {
       <option value="90"${f.dateRange==='90'?' selected':''}>Ultimi 90g</option>
     </select>
     <select class="filter-select" id="filter-asset">
-      ${assets.map(a => `<option value="${a}"${f.asset===a?' selected':''}>${a==='all'?'Tutti gli asset':a}</option>`).join('')}
+      ${assets.map(a => `<option value="${escapeHtml(a)}"${f.asset===a?' selected':''}>${a==='all'?'Tutti gli asset':escapeHtml(a)}</option>`).join('')}
     </select>
     <select class="filter-select" id="filter-setup">
-      ${setups.map(s => `<option value="${s}"${f.setup===s?' selected':''}>${s==='all'?'Tutti i setup':s}</option>`).join('')}
+      ${setups.map(s => `<option value="${escapeHtml(s)}"${f.setup===s?' selected':''}>${s==='all'?'Tutti i setup':escapeHtml(s)}</option>`).join('')}
     </select>
     <select class="filter-select" id="filter-tag">
-      ${tags.map(t => `<option value="${t}"${f.tag===t?' selected':''}>${t==='all'?'Tutti i tag':t}</option>`).join('')}
+      ${tags.map(t => `<option value="${escapeHtml(t)}"${f.tag===t?' selected':''}>${t==='all'?'Tutti i tag':escapeHtml(t)}</option>`).join('')}
     </select>
   `;
   document.getElementById('filter-date').onchange = e => { state.filters.dateRange = e.target.value; renderStats(); };
@@ -3062,6 +3102,7 @@ function drawEquityChart(points) {
   const stroke = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#0A0A0A';
   const dim = getComputedStyle(document.documentElement).getPropertyValue('--border-subtle').trim();
   const txt = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim();
+  const monoFont = (getComputedStyle(document.documentElement).getPropertyValue('--font-mono') || "'JetBrains Mono', monospace").trim();
 
   let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px;display:block">`;
   // Reference line capitale iniziale
@@ -3073,8 +3114,8 @@ function drawEquityChart(points) {
   const path = points.map((p, i) => `${i===0?'M':'L'} ${xS(i)} ${yS(p.eq)}`).join(' ');
   svg += `<path d="${path}" stroke="${stroke}" stroke-width="2" fill="none"/>`;
   // Y labels
-  svg += `<text x="4" y="${yS(maxV)+4}" fill="${txt}" font-size="9" font-family="JetBrains Mono">$${maxV.toFixed(0)}</text>`;
-  svg += `<text x="4" y="${yS(minV)+4}" fill="${txt}" font-size="9" font-family="JetBrains Mono">$${minV.toFixed(0)}</text>`;
+  svg += `<text x="4" y="${yS(maxV)+4}" fill="${txt}" font-size="9" font-family="${monoFont}">$${maxV.toFixed(0)}</text>`;
+  svg += `<text x="4" y="${yS(minV)+4}" fill="${txt}" font-size="9" font-family="${monoFont}">$${minV.toFixed(0)}</text>`;
   svg += `</svg>`;
   container.innerHTML = svg;
 }
@@ -3099,14 +3140,15 @@ function drawBarChart(trades) {
   const winC = getComputedStyle(document.documentElement).getPropertyValue('--win').trim();
   const lossC = getComputedStyle(document.documentElement).getPropertyValue('--loss').trim();
   const accC = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
-  const isMono = document.body.getAttribute('data-theme') === 'editorial';
+  const monoFont = (getComputedStyle(document.documentElement).getPropertyValue('--font-mono') || "'JetBrains Mono', monospace").trim();
+  const isMono = document.body.getAttribute('data-mono') === 'true';
 
   let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px;display:block">`;
   svg += `<line x1="${padL}" y1="${zeroY}" x2="${W-padR}" y2="${zeroY}" stroke="${txt}" stroke-width="1"/>`;
   // Y labels
-  svg += `<text x="4" y="${yS(maxV)+4}" fill="${txt}" font-size="9" font-family="JetBrains Mono">${maxV.toFixed(1)}</text>`;
-  svg += `<text x="4" y="${zeroY+4}" fill="${txt}" font-size="9" font-family="JetBrains Mono">0</text>`;
-  if (minV < 0) svg += `<text x="4" y="${yS(minV)+4}" fill="${txt}" font-size="9" font-family="JetBrains Mono">${minV.toFixed(1)}</text>`;
+  svg += `<text x="4" y="${yS(maxV)+4}" fill="${txt}" font-size="9" font-family="${monoFont}">${maxV.toFixed(1)}</text>`;
+  svg += `<text x="4" y="${zeroY+4}" fill="${txt}" font-size="9" font-family="${monoFont}">0</text>`;
+  if (minV < 0) svg += `<text x="4" y="${yS(minV)+4}" fill="${txt}" font-size="9" font-family="${monoFont}">${minV.toFixed(1)}</text>`;
 
   trades.forEach((t, i) => {
     const cx = padL + xStep * i + xStep / 2;
@@ -3219,6 +3261,12 @@ function bindEvents() {
 
   // Export / Import / Reset
   document.getElementById('export-btn').onclick = exportData;
+  // Promemoria backup
+  document.getElementById('backup-banner-export').onclick = exportData;
+  document.getElementById('backup-banner-dismiss').onclick = () => {
+    state.backupBannerDismissed = true;
+    renderBackupBanner();
+  };
   document.getElementById('import-btn').onclick = () => document.getElementById('import-file').click();
   document.getElementById('import-file').onchange = e => {
     if (e.target.files && e.target.files[0]) {
