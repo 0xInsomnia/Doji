@@ -844,8 +844,13 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
     </div>
 
     <div class="field">
-      <span class="field-label">Tag esecuzione</span>
+      <span class="field-label">Esecuzione</span>
       <div class="chip-group" id="tag-chips"></div>
+    </div>
+
+    <div class="field">
+      <span class="field-label">Errori</span>
+      <div class="chip-group" id="tag-chips-error"></div>
     </div>
 
     <div class="field">
@@ -913,8 +918,13 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
   </div>
 
   <div class="settings-section">
-    <div class="settings-heading">Tag esecuzione</div>
+    <div class="settings-heading">Tag — Esecuzione</div>
     <div class="list-editor" id="tags-editor"></div>
+  </div>
+
+  <div class="settings-section">
+    <div class="settings-heading">Tag — Errori</div>
+    <div class="list-editor" id="error-tags-editor"></div>
   </div>
 
   <div class="settings-section">
@@ -1099,13 +1109,20 @@ const DEFAULT_CONFIG = {
   ],
   assets: ['BTC/USDT','ETH/USDT','SOL/USDT','XTZ/USDT','CRV/USDT'],
   setups: [
-    'BOS','EMA retest','Liquidity grab','FVG','Order block',
-    'Pullback','Inversione confermata','News / catalyst',
+    'Pullback in trend','EMA retest','Cambio struttura (MSS)',
+    'Breakout','Reclaim post-dump','News / catalyst',
   ],
+  // Tag di ESECUZIONE (neutri: come hai gestito il trade)
   tags: [
-    'Piano rispettato','Chiuso in anticipo','Spostato SL',
-    'FOMO','Esitazione ingresso','Revenge trading',
-    'Overtraded','Alta convinzione',
+    'Piano rispettato','Alta convinzione','Confluenza','SL a BE',
+    'Runner','Uscita tecnica','Chiuso in anticipo','TP sfiorato',
+    'Trailing EMA200','Stop hunt','Trade per volume airdrop',
+  ],
+  // Tag di ERRORE (i leak: qui sta la diagnosi)
+  error_tags: [
+    'FOMO','Esitazione ingresso','Revenge trading','Overtraded',
+    'Noia','Paura di restituire','Allargato SL','Entrata controtrend',
+    'Bottom fishing','Entrata sbagliata',
   ],
   contexts: ['Bull','Bear','Chop'],
   timeframes: ['15m','1h','4h'],
@@ -1463,6 +1480,7 @@ async function loadConfig() {
       if (!Array.isArray(state.config.assets)) state.config.assets = DEFAULT_CONFIG.assets;
       if (!Array.isArray(state.config.setups)) state.config.setups = DEFAULT_CONFIG.setups;
       if (!Array.isArray(state.config.tags)) state.config.tags = DEFAULT_CONFIG.tags;
+      if (!Array.isArray(state.config.error_tags)) state.config.error_tags = DEFAULT_CONFIG.error_tags;
       if (!Array.isArray(state.config.contexts)) state.config.contexts = DEFAULT_CONFIG.contexts;
       if (!Array.isArray(state.config.timeframes)) state.config.timeframes = DEFAULT_CONFIG.timeframes;
     } else {
@@ -2196,21 +2214,25 @@ function renderLog() {
   pctInput.classList.remove('computed');
   syncRiskFields();
 
-  // Tag chips
-  const tagBox = document.getElementById('tag-chips');
-  tagBox.innerHTML = '';
-  state.config.tags.forEach(tg => {
-    const btn = document.createElement('button');
-    const active = state.form.tags.includes(tg);
-    btn.className = 'chip' + (active ? ' active' : '');
-    btn.textContent = tg;
-    btn.onclick = () => {
-      if (active) state.form.tags = state.form.tags.filter(x => x !== tg);
-      else state.form.tags.push(tg);
-      render();
-    };
-    tagBox.appendChild(btn);
-  });
+  // Tag chips — due gruppi: Esecuzione e Errori (un solo array form.tags sotto)
+  const renderTagGroup = (boxId, list) => {
+    const box = document.getElementById(boxId);
+    box.innerHTML = '';
+    (list || []).forEach(tg => {
+      const btn = document.createElement('button');
+      const active = state.form.tags.includes(tg);
+      btn.className = 'chip' + (active ? ' active' : '');
+      btn.textContent = tg;
+      btn.onclick = () => {
+        if (state.form.tags.includes(tg)) state.form.tags = state.form.tags.filter(x => x !== tg);
+        else state.form.tags.push(tg);
+        render();
+      };
+      box.appendChild(btn);
+    });
+  };
+  renderTagGroup('tag-chips', state.config.tags);
+  renderTagGroup('tag-chips-error', state.config.error_tags);
 
   // Trade list
   const list = document.getElementById('trades-list');
@@ -2790,7 +2812,7 @@ function renderFilters() {
   const f = state.filters;
   const assets = ['all', ...state.config.assets];
   const setups = ['all', ...state.config.setups];
-  const tags = ['all', ...state.config.tags];
+  const tags = ['all', ...state.config.tags, ...(state.config.error_tags || [])];
   box.innerHTML = `
     <select class="filter-select" id="filter-date">
       <option value="all"${f.dateRange==='all'?' selected':''}>Tutte le date</option>
@@ -2878,7 +2900,8 @@ function renderSettings() {
   // Lists
   renderListEditor('assets-editor', state.config.assets, 'assets', 'es. BTC/USDT');
   renderListEditor('setups-editor', state.config.setups, 'setups', 'es. Doppio minimo');
-  renderListEditor('tags-editor', state.config.tags, 'tags', 'es. Trade da manuale');
+  renderListEditor('tags-editor', state.config.tags, 'tags', 'es. SL a BE');
+  renderListEditor('error-tags-editor', state.config.error_tags || [], 'error_tags', 'es. FOMO');
   renderListEditor('contexts-editor', state.config.contexts || [], 'contexts', 'es. Distribuzione');
   renderListEditor('timeframes-editor', state.config.timeframes || [], 'timeframes', 'es. 30m');
 
