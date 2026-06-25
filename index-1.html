@@ -1,0 +1,3366 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#FAFAF7">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Doji">
+<title>Doji</title>
+<link rel="manifest" href="./manifest.json">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Cormorant+Garamond:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
+<style>
+/* =========================================================
+   CSS VARIABLES (impostate via JS al cambio tema)
+   ========================================================= */
+:root {
+  --bg: #FAFAF7;
+  --surface: #FFFFFF;
+  --surface-alt: #F4F3EE;
+  --border: #000000;
+  --border-subtle: #D8D6D0;
+  --text: #0A0A0A;
+  --text-dim: #6B6960;
+  --text-muted: #A8A59C;
+  --accent: #0A0A0A;
+  --win: #0A0A0A;
+  --loss: transparent;
+  --neutral: #A8A59C;
+  --on-accent: #FAFAF7;
+  --on-win: #FAFAF7;
+  --on-loss: #0A0A0A;
+  --font-main: 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  --font-display: 'Cormorant Garamond', serif;
+  --radius: 2px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-main);
+  min-height: 100vh;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+}
+body {
+  padding: 18px 14px;
+  padding-bottom: 90px;
+  transition: background 0.25s, color 0.25s;
+}
+@supports (padding: max(0px)) {
+  body {
+    padding-top: max(18px, env(safe-area-inset-top));
+    padding-bottom: max(90px, env(safe-area-inset-bottom));
+    padding-left: max(14px, env(safe-area-inset-left));
+    padding-right: max(14px, env(safe-area-inset-right));
+  }
+}
+input, button, textarea, select { font-family: inherit; }
+input, textarea, select { outline: none; -webkit-appearance: none; appearance: none; }
+button { cursor: pointer; user-select: none; -webkit-user-select: none; border: none; background: none; }
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-subtle); }
+
+/* =========================================================
+   HEADER
+   ========================================================= */
+.header {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  margin-bottom: 18px; gap: 12px;
+}
+.brand {
+  font-family: var(--font-display);
+  font-size: 26px; font-weight: 700;
+  color: var(--text); letter-spacing: -0.02em; line-height: 1;
+}
+.brand-accent { color: var(--accent); font-style: italic; }
+.subtitle {
+  color: var(--text-muted);
+  font-size: 10px; letter-spacing: 0.1em; margin-top: 4px;
+  font-family: var(--font-mono); text-transform: uppercase;
+}
+.header-actions { display: flex; gap: 6px; }
+.icon-btn {
+  background: transparent; color: var(--text-dim);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  padding: 7px 11px; font-size: 14px;
+  transition: all 0.15s;
+}
+.icon-btn:hover, .icon-btn:active { border-color: var(--text-dim); color: var(--text); }
+.icon-btn.active { border-color: var(--text); color: var(--text); background: var(--surface-alt); }
+
+/* =========================================================
+   ACCOUNT TABS
+   ========================================================= */
+.account-tabs {
+  display: flex; gap: 4px; margin-bottom: 14px;
+  background: var(--surface-alt); padding: 4px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-subtle);
+}
+.account-tab {
+  flex: 1; padding: 9px 6px;
+  font-size: 11px; font-weight: 500;
+  color: var(--text-dim);
+  border-radius: calc(var(--radius) - 1px);
+  transition: all 0.15s;
+  letter-spacing: 0.03em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.account-tab.active {
+  background: var(--accent); color: var(--on-accent);
+  font-weight: 700;
+}
+
+/* =========================================================
+   VIEW TABS (LOG / STATS)
+   ========================================================= */
+.view-tabs {
+  display: flex; gap: 0; margin-bottom: 16px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.view-tab {
+  padding: 10px 16px;
+  font-size: 11px; font-weight: 500;
+  color: var(--text-muted);
+  letter-spacing: 0.1em; text-transform: uppercase;
+  font-family: var(--font-mono);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: all 0.15s;
+}
+.view-tab.active {
+  color: var(--text); font-weight: 700;
+  border-bottom-color: var(--accent);
+}
+
+/* =========================================================
+   PANELS
+   ========================================================= */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 12px;
+}
+.panel.subtle { border-color: var(--border-subtle); }
+.panel-title {
+  font-size: 10px; color: var(--text-muted);
+  letter-spacing: 0.1em; text-transform: uppercase;
+  font-family: var(--font-mono);
+  margin-bottom: 14px;
+}
+
+/* =========================================================
+   FORM
+   ========================================================= */
+.field { margin-bottom: 12px; }
+.field-label {
+  display: block;
+  font-size: 9px; color: var(--text-dim);
+  letter-spacing: 0.1em; text-transform: uppercase;
+  font-family: var(--font-mono);
+  margin-bottom: 6px;
+}
+.field-label.required { color: var(--text); font-weight: 600; }
+.field-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.field-col { flex: 1; min-width: 110px; }
+
+.input, .select-native, .textarea {
+  width: 100%;
+  background: var(--surface-alt);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  color: var(--text);
+  padding: 9px 11px;
+  font-size: 13px;
+  font-family: var(--font-mono);
+  transition: border-color 0.15s;
+}
+.input:focus, .select-native:focus, .textarea:focus { border-color: var(--text); }
+.input::placeholder, .textarea::placeholder { color: var(--text-muted); }
+.input.big-num { font-size: 14px; font-weight: 600; }
+.textarea { font-family: var(--font-main); resize: vertical; min-height: 60px; }
+
+/* Conferma eliminazione inline nella riga trade (tap lungo) */
+.row-confirm {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; width: 100%; flex-wrap: wrap;
+}
+.row-confirm-label { font-size: 13px; font-weight: 600; color: var(--text); }
+.row-confirm-actions { display: flex; gap: 8px; }
+.row-confirm-actions button { padding: 6px 14px; font-size: 12px; }
+.tilt-banner {
+  padding: 11px 13px;
+  margin-bottom: 14px;
+  background: var(--loss);
+  color: var(--on-loss);
+  border: 2px solid var(--text);
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+[data-mono="true"] .tilt-banner {
+  background: transparent;
+  color: var(--text);
+  border-color: var(--text);
+}
+
+/* Promemoria backup (soft, non allarmante) */
+.backup-banner {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 9px 12px;
+  margin-bottom: 14px;
+  background: var(--surface-alt);
+  border: 1px dashed var(--border-subtle);
+  border-radius: var(--radius);
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+.backup-banner .backup-action {
+  flex: none;
+  font-size: 12px; font-weight: 600;
+  color: var(--text);
+  text-decoration: underline;
+  padding: 2px 4px;
+}
+.backup-banner .backup-dismiss {
+  flex: none;
+  font-size: 14px;
+  color: var(--text-muted);
+  padding: 2px 6px;
+}
+
+.select-native {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M3 4.5l3 3 3-3'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 12px;
+  padding-right: 28px;
+}
+
+/* =========================================================
+   CHIPS (selezione setup, tag, direzione, sì/no)
+   ========================================================= */
+.chip-group { display: flex; gap: 5px; flex-wrap: wrap; }
+.chip {
+  background: transparent;
+  color: var(--text-dim);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  padding: 6px 11px;
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  font-weight: 500;
+  transition: all 0.12s;
+  white-space: nowrap;
+}
+.chip:hover { border-color: var(--text-dim); }
+.chip.active {
+  background: var(--accent); color: var(--on-accent);
+  border-color: var(--accent); font-weight: 700;
+}
+.chip.win.active { background: var(--win); color: var(--on-win); border-color: var(--win); }
+.chip.loss.active { background: var(--loss); color: var(--on-loss); border-color: var(--text); }
+[data-mono="true"] .chip.loss.active {
+  background: transparent; color: var(--text);
+  border: 1px solid var(--text);
+}
+
+/* =========================================================
+   BOTTONI PRIMARI
+   ========================================================= */
+.btn-primary {
+  background: var(--accent); color: var(--on-accent);
+  border-radius: var(--radius);
+  padding: 11px 22px;
+  font-size: 12px; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  width: 100%;
+  transition: all 0.15s;
+}
+.btn-primary:hover { opacity: 0.9; }
+.btn-primary.saved { background: var(--win); color: var(--on-win); }
+.btn-secondary {
+  background: transparent; color: var(--text-dim);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  padding: 8px 14px; font-size: 11px;
+  letter-spacing: 0.05em;
+  transition: all 0.15s;
+}
+.btn-secondary:hover { border-color: var(--text-dim); color: var(--text); }
+.btn-danger {
+  background: transparent; color: var(--text);
+  border: 1px solid var(--text);
+  border-radius: var(--radius);
+  padding: 8px 14px; font-size: 11px;
+  letter-spacing: 0.05em;
+}
+
+.btn-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 14px; }
+.toast {
+  padding: 7px 10px; border-radius: var(--radius); font-size: 11px;
+  font-family: var(--font-mono);
+}
+.toast.error { color: var(--text); background: var(--surface-alt); border: 1px solid var(--text); }
+.toast.success { color: var(--text); background: var(--surface-alt); border: 1px solid var(--text-dim); }
+.hint { font-size: 10px; color: var(--text-muted); margin-top: 6px; line-height: 1.5; }
+
+/* =========================================================
+   TRADE LIST
+   ========================================================= */
+.trade-row {
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  padding: 11px 13px;
+  display: flex; align-items: center; gap: 10px;
+  flex-wrap: wrap; margin-bottom: 5px;
+  font-size: 11px;
+}
+.trade-n { color: var(--text-muted); width: 26px; font-family: var(--font-mono); font-size: 10px; }
+.trade-dir {
+  width: 38px; font-size: 10px;
+  letter-spacing: 0.05em; font-family: var(--font-mono);
+  font-weight: 700;
+}
+.trade-asset {
+  color: var(--text); font-weight: 600;
+  font-size: 11px; font-family: var(--font-mono);
+  min-width: 60px;
+}
+.trade-setup { color: var(--text-dim); flex: 1; font-size: 10px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 60px; }
+.trade-rr {
+  font-family: var(--font-mono); font-size: 12px; font-weight: 700;
+  min-width: 50px; text-align: right;
+}
+.trade-ts { color: var(--text-muted); font-size: 9px; font-family: var(--font-mono); }
+
+.trade-tags {
+  display: flex; gap: 4px; flex-wrap: wrap;
+  width: 100%; margin-top: 6px;
+}
+.tag-pill {
+  font-size: 9px; padding: 2px 7px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+}
+.trade-note {
+  width: 100%; margin-top: 6px; padding-top: 6px;
+  border-top: 1px dashed var(--border-subtle);
+  font-size: 11px; color: var(--text-dim); line-height: 1.4;
+  font-style: italic;
+}
+
+/* =========================================================
+   VALORI POS/NEG (con override per tema mono)
+   ========================================================= */
+.val-pos { color: var(--win); font-weight: 700; }
+.val-neg { color: var(--loss); font-weight: 700; }
+.val-zero { color: var(--neutral); font-weight: 400; }
+
+/* Tema editorial e altri mono: filled vs outlined */
+[data-mono="true"] .val-pos {
+  color: var(--text); font-weight: 800;
+}
+[data-mono="true"] .val-neg {
+  color: transparent; -webkit-text-stroke: 1px var(--text);
+  font-weight: 800;
+}
+[data-mono="true"] .val-zero {
+  color: var(--text-muted); font-weight: 400;
+}
+[data-mono="true"] .trade-dir.long {
+  color: var(--text); font-weight: 800;
+}
+[data-mono="true"] .trade-dir.short {
+  color: transparent; -webkit-text-stroke: 1px var(--text);
+  font-weight: 800;
+}
+.trade-dir.long { color: var(--win); }
+.trade-dir.short { color: var(--loss); }
+
+/* =========================================================
+   STATS
+   ========================================================= */
+.stat-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+  margin-bottom: 14px;
+}
+.stat-box {
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  padding: 13px;
+}
+.stat-label {
+  font-size: 9px; color: var(--text-dim);
+  letter-spacing: 0.08em; text-transform: uppercase;
+  font-family: var(--font-mono); margin-bottom: 7px;
+}
+.stat-value {
+  font-size: 22px; font-weight: 700;
+  font-family: var(--font-mono); line-height: 1;
+}
+.stat-sub { font-size: 10px; color: var(--text-muted); margin-top: 5px; font-family: var(--font-mono); }
+/* Variante per i box con due valori affiancati: evita l'overflow sugli schermi stretti */
+.stat-value.small { font-size: 16px; line-height: 1.2; }
+
+/* Filtri stats */
+.filter-bar {
+  display: flex; gap: 8px; flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.filter-select {
+  background: var(--surface-alt);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  color: var(--text);
+  padding: 7px 26px 7px 10px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  flex: 1; min-width: 110px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M3 4.5l3 3 3-3'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 11px;
+}
+
+/* Breakdown table */
+.breakdown-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 0; border-bottom: 1px solid var(--border-subtle);
+  font-size: 11px;
+}
+.breakdown-row:last-child { border-bottom: none; }
+.breakdown-row-tap { cursor: pointer; margin: 0 -6px; padding-left: 6px; padding-right: 6px; border-radius: var(--radius); }
+.breakdown-row-tap:active { background: var(--surface-alt); }
+.breakdown-chevron { margin-left: 6px; color: var(--text-dim); font-weight: 400; }
+.breakdown-label { color: var(--text); font-family: var(--font-mono); font-weight: 500; }
+.breakdown-stats { color: var(--text-dim); font-family: var(--font-mono); font-size: 10px; }
+.breakdown-value {
+  font-family: var(--font-mono); font-weight: 700; font-size: 13px;
+  min-width: 60px; text-align: right;
+}
+
+/* Insight */
+.insight-item {
+  padding: 9px 12px;
+  margin-bottom: 6px;
+  background: var(--surface-alt);
+  border-left: 2px solid var(--text);
+  font-size: 12px; color: var(--text); line-height: 1.6;
+}
+.insight-item.positive { border-left-style: dashed; color: var(--text-dim); }
+.insight-item.note { border-left-style: dotted; border-left-color: var(--text-muted); color: var(--text-dim); font-style: italic; }
+
+/* =========================================================
+   SETTINGS
+   ========================================================= */
+.settings-section { margin-bottom: 22px; }
+.settings-heading {
+  font-family: var(--font-display); font-style: italic;
+  font-size: 18px; color: var(--text);
+  margin-bottom: 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.account-card {
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  padding: 14px;
+  margin-bottom: 8px;
+}
+.account-card-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 10px;
+}
+.account-card-name {
+  font-weight: 700; color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px; letter-spacing: 0.05em;
+}
+
+.list-editor {
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  padding: 12px;
+}
+.list-item {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 0;
+  font-size: 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.list-item:last-child { border-bottom: none; }
+.list-item-name { color: var(--text); font-family: var(--font-mono); flex: 1; min-width: 0; word-break: break-word; }
+.list-add-row {
+  display: flex; gap: 6px; margin-top: 10px;
+  padding-top: 10px; border-top: 1px solid var(--border);
+}
+.list-add-input {
+  flex: 1; background: var(--surface-alt);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  color: var(--text); padding: 6px 9px;
+  font-size: 11px; font-family: var(--font-mono);
+}
+.list-add-btn {
+  background: var(--accent); color: var(--on-accent);
+  border-radius: var(--radius);
+  padding: 6px 12px;
+  font-size: 11px; font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+/* Tema selector in settings */
+.theme-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+}
+.theme-option {
+  padding: 12px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  background: var(--surface);
+  text-align: left;
+  transition: all 0.15s;
+}
+.theme-option.active { border-color: var(--text); border-width: 2px; padding: 11px 9px; }
+.theme-option-name {
+  font-weight: 700; color: var(--text);
+  font-size: 12px; margin-bottom: 4px;
+  font-family: var(--font-mono); letter-spacing: 0.03em;
+}
+.theme-option-desc {
+  font-size: 10px; color: var(--text-muted); line-height: 1.4;
+}
+.theme-swatch {
+  display: flex; gap: 3px; margin-top: 8px;
+}
+.theme-swatch span {
+  width: 14px; height: 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 50%;
+}
+
+/* =========================================================
+   FOOTER ACTIONS
+   ========================================================= */
+.footer-actions {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+  padding: 12px 16px;
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+  display: flex; gap: 8px; justify-content: center;
+  z-index: 10;
+}
+
+/* =========================================================
+   MISC
+   ========================================================= */
+.hidden { display: none !important; }
+.empty {
+  color: var(--text-muted); font-size: 16px;
+  text-align: center; padding: 40px 0;
+  font-style: italic;
+  font-family: var(--font-display);
+}
+
+/* Collapsible note */
+.note-toggle {
+  font-size: 10px; color: var(--text-dim);
+  text-decoration: underline; cursor: pointer;
+  background: none; padding: 0; margin-bottom: 8px;
+}
+
+/* =========================================================
+   DETAIL VIEW (schermata piena trade singolo)
+   ========================================================= */
+.detail-view-wrap { padding-bottom: 80px; }
+.detail-header {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 18px;
+}
+.detail-back {
+  background: transparent; color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 12px; font-size: 12px;
+  font-family: var(--font-mono);
+  letter-spacing: 0.05em;
+}
+.detail-title {
+  font-family: var(--font-display);
+  font-size: 22px; color: var(--text);
+  font-weight: 700; line-height: 1;
+}
+.detail-title-sub {
+  font-family: var(--font-mono);
+  font-size: 10px; color: var(--text-muted);
+  letter-spacing: 0.1em; text-transform: uppercase;
+  margin-top: 4px;
+}
+.detail-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+  margin-bottom: 14px;
+}
+.detail-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 14px 18px;
+}
+.detail-grid-full { grid-column: 1 / -1; }
+.detail-field-label {
+  font-size: 9px; color: var(--text-dim);
+  letter-spacing: 0.1em; text-transform: uppercase;
+  font-family: var(--font-mono);
+  margin-bottom: 4px;
+}
+.detail-field-value {
+  font-size: 15px; color: var(--text);
+  font-family: var(--font-mono); font-weight: 500;
+  line-height: 1.4;
+}
+.detail-field-value.big {
+  font-size: 22px; font-weight: 700;
+}
+.detail-field-value.italic {
+  font-family: var(--font-display);
+  font-style: italic; font-weight: 400;
+  font-size: 16px;
+}
+.detail-note {
+  padding: 12px;
+  background: var(--surface-alt);
+  border-left: 2px solid var(--text);
+  font-style: italic;
+  font-family: var(--font-display);
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text);
+}
+.detail-tags-list {
+  display: flex; flex-wrap: wrap; gap: 5px;
+}
+.detail-tags-list .tag-pill {
+  font-size: 10px; padding: 4px 9px;
+}
+.detail-actions {
+  display: flex; gap: 8px; margin-top: 6px;
+}
+.detail-actions .btn-secondary, .detail-actions .btn-danger {
+  flex: 1; padding: 11px 14px; font-size: 12px;
+  letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600;
+}
+
+/* Trade row tappabile */
+.trade-row {
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.trade-row:hover, .trade-row:active {
+  border-color: var(--text-dim);
+}
+
+/* Form: indicatore modalità modifica */
+.edit-mode-banner {
+  background: var(--surface-alt);
+  border: 1px solid var(--text);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.edit-mode-banner .label {
+  color: var(--text); font-weight: 700;
+  letter-spacing: 0.05em;
+}
+.edit-mode-banner .cancel-link {
+  color: var(--text-dim);
+  text-decoration: underline;
+  font-size: 11px;
+  background: none;
+  padding: 0;
+}
+</style>
+</head>
+<body data-theme="editorial" data-mono="true">
+
+<!-- HEADER -->
+<div class="header">
+  <div>
+    <div class="brand">Do<span class="brand-accent">ji</span></div>
+    <div class="subtitle" id="subtitle">CARICAMENTO…</div>
+  </div>
+  <div class="header-actions">
+    <button class="icon-btn" id="settings-btn" title="Impostazioni">⚙</button>
+  </div>
+</div>
+
+<!-- ACCOUNT TABS -->
+<div class="account-tabs" id="account-tabs"></div>
+
+<!-- VIEW TABS -->
+<div class="view-tabs" id="view-tabs">
+  <button class="view-tab active" data-view="log">Log</button>
+  <button class="view-tab" data-view="stats">Stats</button>
+</div>
+
+<!-- ================ LOG VIEW ================ -->
+<div id="log-view">
+  <!-- PROMEMORIA BACKUP -->
+  <div class="backup-banner hidden" id="backup-banner">
+    <span id="backup-banner-text"></span>
+    <button class="backup-action" id="backup-banner-export">Esporta ora</button>
+    <button class="backup-dismiss" id="backup-banner-dismiss" title="Nascondi">×</button>
+  </div>
+  <!-- FORM -->
+  <div class="panel">
+    <div class="panel-title" id="form-title">Nuovo trade</div>
+    <div class="edit-mode-banner hidden" id="edit-banner">
+      <span class="label">Modifica trade #<span id="edit-banner-n"></span></span>
+      <button class="cancel-link" id="edit-cancel">Annulla</button>
+    </div>
+    <div class="tilt-banner hidden" id="tilt-banner"></div>
+
+    <div class="field-row">
+      <div class="field-col" style="flex: 0; min-width: auto;">
+        <span class="field-label">Direzione</span>
+        <div class="chip-group">
+          <button class="chip win" id="dir-long">LONG</button>
+          <button class="chip loss" id="dir-short">SHORT</button>
+        </div>
+      </div>
+      <div class="field-col">
+        <span class="field-label">Coppia</span>
+        <select class="select-native" id="asset"></select>
+      </div>
+    </div>
+
+    <div class="field">
+      <span class="field-label">Setup</span>
+      <div class="chip-group" id="setup-chips"></div>
+    </div>
+
+    <div class="field">
+      <span class="field-label">Contesto mercato</span>
+      <div class="chip-group" id="context-chips"></div>
+    </div>
+
+    <div class="field">
+      <span class="field-label">Timeframe</span>
+      <div class="chip-group" id="timeframe-chips"></div>
+    </div>
+
+    <div class="field-row">
+      <div class="field-col">
+        <span class="field-label required">R/R pianificato *</span>
+        <input type="number" id="rr-planned" class="input big-num" placeholder="1.5" step="0.1" min="0" inputmode="decimal">
+      </div>
+      <div class="field-col" id="risk-col">
+        <span class="field-label" id="risk-mode-label">Rischio %</span>
+        <input type="number" id="risk-pct" class="input big-num" placeholder="1.0" step="0.1" min="0" inputmode="decimal">
+      </div>
+    </div>
+
+    <div class="field">
+      <button class="note-toggle" id="risk-amt-toggle">+ usa un capitale diverso per questo trade</button>
+      <input type="number" id="risk-amt" class="input big-num hidden" placeholder="es. 5000" step="100" min="0" inputmode="decimal">
+      <div class="hint hidden" id="risk-amt-hint">Per default usa il capitale corrente dell'account. Specifica un valore solo se vuoi rischiare su una base diversa (es. tieni parte del capitale fuori dal trading).</div>
+    </div>
+    <div class="field">
+      <span class="field-label required">Esito *</span>
+      <div class="chip-group">
+        <button class="chip win" id="out-win">WIN</button>
+        <button class="chip" id="out-be">BE</button>
+        <button class="chip" id="out-partial">PARZIALE</button>
+        <button class="chip loss" id="out-loss">LOSS</button>
+      </div>
+    </div>
+
+    <div class="field hidden" id="rr-actual-wrap">
+      <span class="field-label required" id="rr-actual-label">R/R reale *</span>
+      <input type="number" id="rr-actual" class="input big-num" placeholder="es. 0.5" step="0.1" min="0" inputmode="decimal">
+      <div class="hint" id="rr-actual-hint">Quanto hai preso (valore positivo).</div>
+    </div>
+
+    <div class="field hidden" id="result-dollar-wrap">
+      <span class="field-label required" id="result-dollar-label">Risultato $ *</span>
+      <input type="number" id="result-dollar" class="input big-num" placeholder="es. 80" step="1" min="0" inputmode="decimal">
+      <div class="hint" id="result-dollar-hint">Quanto hai guadagnato. Il rischio si calcola da solo.</div>
+    </div>
+
+    <div class="field">
+      <span class="field-label">Esecuzione</span>
+      <div class="chip-group" id="tag-chips"></div>
+    </div>
+
+    <div class="field">
+      <span class="field-label">Errori</span>
+      <div class="chip-group" id="tag-chips-error"></div>
+    </div>
+
+    <div class="field">
+      <button class="note-toggle" id="note-toggle">+ aggiungi nota libera</button>
+      <textarea class="textarea hidden" id="note" placeholder="Note specifiche su questo trade..."></textarea>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn-primary" id="add-btn">+ Aggiungi trade</button>
+      <div id="toast"></div>
+    </div>
+  </div>
+
+  <!-- LISTA TRADE -->
+  <div class="panel-title" style="margin-top: 18px; margin-bottom: 8px; padding: 0 4px;">Ultimi trade</div>
+  <div id="trades-list"></div>
+</div>
+
+<!-- ================ STATS VIEW ================ -->
+<div id="stats-view" class="hidden">
+  <div class="filter-bar" id="stats-filters"></div>
+  <div id="stats-content"></div>
+</div>
+
+<!-- ================ DETAIL VIEW ================ -->
+<div id="detail-view" class="hidden detail-view-wrap">
+  <div class="detail-header">
+    <button class="detail-back" id="detail-back-btn">← Lista</button>
+    <div>
+      <div class="detail-title" id="detail-title"></div>
+      <div class="detail-title-sub" id="detail-title-sub"></div>
+    </div>
+  </div>
+  <div id="detail-content"></div>
+</div>
+
+<!-- ================ GROUP VIEW (trade di un gruppo dalle stats) ================ -->
+<div id="group-view" class="hidden detail-view-wrap">
+  <div class="detail-header">
+    <button class="detail-back" id="group-back-btn">← Stats</button>
+    <div>
+      <div class="detail-title" id="group-title"></div>
+      <div class="detail-title-sub" id="group-title-sub"></div>
+    </div>
+  </div>
+  <div id="group-list"></div>
+</div>
+
+<!-- ================ SETTINGS VIEW ================ -->
+<div id="settings-view" class="hidden">
+
+  <div class="settings-section">
+    <div class="settings-heading">Account</div>
+    <div id="accounts-editor"></div>
+  </div>
+
+  <div class="settings-section">
+    <div class="settings-heading">Coppie / Asset</div>
+    <div class="list-editor" id="assets-editor"></div>
+  </div>
+
+  <div class="settings-section">
+    <div class="settings-heading">Setup</div>
+    <div class="list-editor" id="setups-editor"></div>
+  </div>
+
+  <div class="settings-section">
+    <div class="settings-heading">Tag — Esecuzione</div>
+    <div class="list-editor" id="tags-editor"></div>
+  </div>
+
+  <div class="settings-section">
+    <div class="settings-heading">Tag — Errori</div>
+    <div class="list-editor" id="error-tags-editor"></div>
+  </div>
+
+  <div class="settings-section">
+    <div class="settings-heading">Contesto mercato</div>
+    <div class="list-editor" id="contexts-editor"></div>
+  </div>
+
+  <div class="settings-section">
+    <div class="settings-heading">Timeframe</div>
+    <div class="list-editor" id="timeframes-editor"></div>
+  </div>
+
+  <div class="settings-section">
+    <div class="settings-heading">Tema</div>
+    <div class="theme-grid" id="theme-grid"></div>
+  </div>
+
+  <div class="settings-section">
+    <div class="settings-heading">Backup &amp; Reset</div>
+    <div class="panel subtle">
+      <p style="font-size: 12px; color: var(--text-dim); line-height: 1.6; margin-bottom: 12px;">
+        Esporta periodicamente i tuoi dati in un file JSON che puoi conservare ovunque (Drive, Dropbox, mail). I dati sono salvati nel telefono — se il telefono si rompe o resetta, hai bisogno del backup.
+      </p>
+      <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+        <button class="btn-secondary" id="export-btn">📥 Esporta JSON</button>
+        <button class="btn-secondary" id="import-btn">📤 Importa JSON</button>
+        <button class="btn-danger" id="reset-btn">⚠ Reset totale</button>
+      </div>
+      <input type="file" id="import-file" accept=".json,application/json" style="display: none;">
+    </div>
+  </div>
+
+</div>
+
+<!-- FOOTER ACTIONS -->
+<div class="footer-actions" id="footer-actions">
+  <button class="btn-secondary" id="footer-back" style="display: none;">← Torna</button>
+</div>
+
+<script>
+'use strict';
+
+// ============================================================
+//  TEMI
+// ============================================================
+const themes = {
+  editorial: {
+    name: 'Editorial Mono',
+    desc: 'Bianco etereo, nero inchiostro, filled vs outlined',
+    bg:'#FAFAF7', surface:'#FFFFFF', surfaceAlt:'#F4F3EE',
+    border:'#000000', borderSubtle:'#D8D6D0',
+    text:'#0A0A0A', textDim:'#6B6960', textMuted:'#A8A59C',
+    accent:'#0A0A0A', win:'#0A0A0A', loss:'transparent', neutral:'#A8A59C',
+    onAccent:'#FAFAF7', onWin:'#FAFAF7', onLoss:'#0A0A0A',
+    fontMain:"'Inter', sans-serif",
+    fontMono:"'JetBrains Mono', monospace",
+    fontDisplay:"'Cormorant Garamond', serif",
+    radius:'2px',
+    themeColor:'#FAFAF7',
+    mono: true,
+  },
+  blackmono: {
+    name: 'Pure Black',
+    desc: 'Nero assoluto, monospace tecnico',
+    bg:'#000000', surface:'#0A0A0A', surfaceAlt:'#080808',
+    border:'#1A1A1A', borderSubtle:'#111111',
+    text:'#FFFFFF', textDim:'#888888', textMuted:'#444444',
+    accent:'#FFFFFF', win:'#00FF88', loss:'#FF3355', neutral:'#666666',
+    onAccent:'#000000', onWin:'#000000', onLoss:'#FFFFFF',
+    fontMain:"'IBM Plex Mono', monospace",
+    fontMono:"'IBM Plex Mono', monospace",
+    fontDisplay:"'IBM Plex Mono', monospace",
+    radius:'0px',
+    themeColor:'#000000',
+    mono: false,
+  },
+  sepia: {
+    name: 'Sepia',
+    desc: 'Avorio caldo + inchiostro seppia, manoscritto vintage',
+    bg:'#F5EFE0', surface:'#FAF5E8', surfaceAlt:'#ECE3D0',
+    border:'#4A3825', borderSubtle:'#D4C8B0',
+    text:'#3D2817', textDim:'#7A5E40', textMuted:'#A89878',
+    accent:'#4A3825', win:'#4A3825', loss:'transparent', neutral:'#A89878',
+    onAccent:'#FAF5E8', onWin:'#FAF5E8', onLoss:'#3D2817',
+    fontMain:"'Inter', sans-serif",
+    fontMono:"'JetBrains Mono', monospace",
+    fontDisplay:"'Cormorant Garamond', serif",
+    radius:'2px',
+    themeColor:'#F5EFE0',
+    mono: true,
+  },
+  carbon: {
+    name: 'Carbon',
+    desc: 'Antracite caldo + crema pallida, inverso dell\'Editorial',
+    bg:'#1A1A1A', surface:'#242424', surfaceAlt:'#1F1F1F',
+    border:'#F5F1E8', borderSubtle:'#3A3A3A',
+    text:'#F5F1E8', textDim:'#A8A39A', textMuted:'#5A554C',
+    accent:'#F5F1E8', win:'#F5F1E8', loss:'transparent', neutral:'#5A554C',
+    onAccent:'#1A1A1A', onWin:'#1A1A1A', onLoss:'#F5F1E8',
+    fontMain:"'Inter', sans-serif",
+    fontMono:"'JetBrains Mono', monospace",
+    fontDisplay:"'Cormorant Garamond', serif",
+    radius:'2px',
+    themeColor:'#1A1A1A',
+    mono: true,
+  },
+  nocturne: {
+    name: 'Nocturne',
+    desc: 'Blu notte + bianco glaciale, cielo astrale',
+    bg:'#0D1830', surface:'#14233F', surfaceAlt:'#0F1D38',
+    border:'#E0E5F0', borderSubtle:'#1F2D45',
+    text:'#E0E5F0', textDim:'#8A95B0', textMuted:'#4A5675',
+    accent:'#E0E5F0', win:'#E0E5F0', loss:'transparent', neutral:'#4A5675',
+    onAccent:'#0D1830', onWin:'#0D1830', onLoss:'#E0E5F0',
+    fontMain:"'Inter', sans-serif",
+    fontMono:"'JetBrains Mono', monospace",
+    fontDisplay:"'Cormorant Garamond', serif",
+    radius:'2px',
+    themeColor:'#0D1830',
+    mono: true,
+  },
+  aviator: {
+    name: 'Aviator',
+    desc: 'Cockpit notturno spento, nero caldo + crema sporca',
+    bg:'#0E0E0C', surface:'#1A1A17', surfaceAlt:'#141411',
+    border:'#C8C2B0', borderSubtle:'#2A2A25',
+    text:'#C8C2B0', textDim:'#8A8576', textMuted:'#48453E',
+    accent:'#C8C2B0', win:'#C8C2B0', loss:'transparent', neutral:'#48453E',
+    onAccent:'#0E0E0C', onWin:'#0E0E0C', onLoss:'#C8C2B0',
+    fontMain:"'Inter', sans-serif",
+    fontMono:"'JetBrains Mono', monospace",
+    fontDisplay:"'Cormorant Garamond', serif",
+    radius:'2px',
+    themeColor:'#0E0E0C',
+    mono: true,
+  },
+  stratosphere: {
+    name: 'Stratosphere',
+    desc: 'Blu plumbeo + crema azzurrata, alta quota notturna',
+    bg:'#10141A', surface:'#1A1F28', surfaceAlt:'#161A22',
+    border:'#C0C5D0', borderSubtle:'#262C36',
+    text:'#C0C5D0', textDim:'#828896', textMuted:'#454B58',
+    accent:'#C0C5D0', win:'#C0C5D0', loss:'transparent', neutral:'#454B58',
+    onAccent:'#10141A', onWin:'#10141A', onLoss:'#C0C5D0',
+    fontMain:"'Inter', sans-serif",
+    fontMono:"'JetBrains Mono', monospace",
+    fontDisplay:"'Cormorant Garamond', serif",
+    radius:'2px',
+    themeColor:'#10141A',
+    mono: true,
+  },
+};
+
+function applyTheme(name) {
+  const t = themes[name] || themes.editorial;
+  const root = document.documentElement;
+  root.style.setProperty('--bg', t.bg);
+  root.style.setProperty('--surface', t.surface);
+  root.style.setProperty('--surface-alt', t.surfaceAlt);
+  root.style.setProperty('--border', t.border);
+  root.style.setProperty('--border-subtle', t.borderSubtle);
+  root.style.setProperty('--text', t.text);
+  root.style.setProperty('--text-dim', t.textDim);
+  root.style.setProperty('--text-muted', t.textMuted);
+  root.style.setProperty('--accent', t.accent);
+  root.style.setProperty('--win', t.win);
+  root.style.setProperty('--loss', t.loss);
+  root.style.setProperty('--neutral', t.neutral);
+  root.style.setProperty('--on-accent', t.onAccent);
+  root.style.setProperty('--on-win', t.onWin);
+  root.style.setProperty('--on-loss', t.onLoss);
+  root.style.setProperty('--font-main', t.fontMain);
+  root.style.setProperty('--font-mono', t.fontMono);
+  root.style.setProperty('--font-display', t.fontDisplay);
+  root.style.setProperty('--radius', t.radius);
+  document.body.setAttribute('data-theme', name);
+  document.body.setAttribute('data-mono', t.mono ? 'true' : 'false');
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', t.themeColor);
+}
+
+// ============================================================
+//  STATE & DEFAULTS
+// ============================================================
+const DEFAULT_CONFIG = {
+  accounts: [
+    { id: 'acc1', name: 'Principale', capital: 5000, risk_pct: 1.0 },
+    { id: 'acc2', name: 'Speculativo', capital: 2000, risk_pct: 2.0 },
+    { id: 'acc3', name: 'Ultra', capital: 500, risk_pct: 3.0 },
+  ],
+  assets: ['BTC/USDT','ETH/USDT','SOL/USDT','XTZ/USDT','CRV/USDT'],
+  setups: [
+    'Pullback in trend','EMA retest','Cambio struttura (MSS)',
+    'Breakout','Reclaim post-dump','News / catalyst',
+  ],
+  // Tag di ESECUZIONE (neutri: come hai gestito il trade)
+  tags: [
+    'Piano rispettato','Alta convinzione','Confluenza','SL a BE',
+    'Runner','Uscita tecnica','Chiuso in anticipo','TP sfiorato',
+    'Trailing EMA200','Stop hunt','Trade per volume airdrop',
+  ],
+  // Tag di ERRORE (i leak: qui sta la diagnosi)
+  error_tags: [
+    'FOMO','Esitazione ingresso','Revenge trading','Overtraded',
+    'Noia','Paura di restituire','Allargato SL','Entrata controtrend',
+    'Bottom fishing','Entrata sbagliata',
+  ],
+  contexts: ['Bull','Bear','Chop'],
+  timeframes: ['15m','1h','4h'],
+  theme: 'editorial',
+  current_account_id: 'acc1',
+};
+
+const state = {
+  trades: [],
+  config: { ...DEFAULT_CONFIG },
+  view: 'log',
+  form: makeEmptyForm(),
+  filters: { dateRange: 'all', asset: 'all', setup: 'all', tag: 'all', direction: 'all' },
+  editingId: null,
+  detailId: null,
+  navStack: [],
+  logLimit: 15,
+  loading: true,
+};
+
+function makeEmptyForm() {
+  return {
+    direction: 'long',
+    asset: '',
+    setup: '',
+    context: '', // contesto di mercato: 'Bull' | 'Bear' | 'Chop' | ''
+    timeframe: '', // timeframe di esecuzione: '15m' | '1h' | '4h' | ''
+    rr_planned: '',
+    risk_pct: '',
+    // risk_amount NON è editabile dall'UI: esiste solo per preservare il rischio $
+    // di un trade salvato in modalità dollaro quando lo si modifica (es. esito BE,
+    // dove useDollar è falso e il valore va ripreso pari pari da startEdit).
+    risk_amount: '',
+    // capital_used è ciò che scrive l'input "capitale custom" (id risk-amt).
+    capital_used: '',
+    result_dollar: '',
+    last_edited: 'pct', // quale campo guida: 'pct' o 'dollar'
+    outcome: null, // 'win' | 'be' | 'partial' | 'loss' | null
+    tp_respected: null,
+    sl_respected: null,
+    rr_actual: '',
+    tags: [],
+    note: '',
+  };
+}
+
+// Deriva l'outcome da rr_actual e rr_planned (per trade legacy senza campo outcome)
+function deriveOutcome(t) {
+  if (t.rr_actual == null) return null;
+  if (t.rr_actual === 0) return 'be';
+  if (t.rr_actual < 0) return 'loss';
+  // rr_actual > 0
+  if (t.rr_planned != null && Math.abs(t.rr_actual - t.rr_planned) < 0.01) return 'win';
+  return 'partial';
+}
+
+// ---- Banner anti-tilt ----
+// Stato di "tilt" della giornata su TUTTI gli account: stop consecutivi in coda + denaro perso oggi.
+// Il "giorno" è la data locale del telefono: a mezzanotte la data cambia e il conteggio riparte da solo.
+function todayTiltState() {
+  const today = new Date().toLocaleDateString('it-IT');
+  const todays = state.trades
+    .filter(t => t.ts === today)
+    .sort((a, b) => a.iso.localeCompare(b.iso));
+  let streak = 0;
+  for (let i = todays.length - 1; i >= 0; i--) {
+    if (todays[i].rr_actual < 0) streak++;
+    else break;
+  }
+  // Cache: trade ordinati per account (per calcolare il capitale al momento del trade)
+  const sortedByAcc = {};
+  let lossToday = 0;
+  todays.forEach(t => {
+    const acc = state.config.accounts.find(a => a.id === t.account_id) || currentAccount();
+    let pnl;
+    if (t.risk_amount != null) pnl = t.rr_actual * t.risk_amount;
+    else {
+      if (!sortedByAcc[t.account_id]) {
+        sortedByAcc[t.account_id] = state.trades
+          .filter(x => x.account_id === t.account_id)
+          .sort((a, b) => a.iso.localeCompare(b.iso));
+      }
+      const base = t.capital_used != null
+        ? t.capital_used
+        : capitalAtTrade(t, sortedByAcc[t.account_id], acc);
+      pnl = t.rr_actual * (t.risk_pct || acc.risk_pct) / 100 * base;
+    }
+    if (pnl < 0) lossToday += -pnl;
+  });
+  return { streak, lossToday };
+}
+
+function moneyTier(loss) {
+  if (loss < 20) return 'low';
+  if (loss <= 80) return 'mid';
+  return 'high';
+}
+
+// Frasi: [livello stop t2/t3/t4][entità perdita low/mid/high]. $X = denaro perso oggi.
+const TILT_MSGS = {
+  t2: {
+    low: [
+      'Due stop ma solo $X. Hai sbagliato poco. Fermati prima di sbagliare tanto.',
+      '2 rossi leggeri. C\'è ancora una via d\'uscita, e si chiama "spegni lo schermo".',
+      'Due stop, $X. Briciole. Ma le briciole di oggi sono la fame di domani se continui.',
+    ],
+    mid: [
+      'Due stop e $X in meno. Il terzo trade non te li ridà: ti raddoppia il problema.',
+      '2 perdite, $X. Il mercato ti fa lo sconto. Non chiedere il prezzo pieno.',
+      'Due rossi, $X andati. Ora sei tu il liquidity grab di qualcun altro.',
+    ],
+    high: [
+      'Solo 2 stop ma già $X?! Che size usi, quella del coraggio o quella dell\'incoscienza?',
+      '$X in due trade. Non è tilt, è generosità. Il mercato ti ringrazia.',
+      'Due stop, $X bruciati. A questa velocità il terzo trade è autolesionismo puro.',
+    ],
+  },
+  t3: {
+    low: [
+      'Tre di fila per $X. Pochi soldi, ma il messaggio è chiaro: oggi non è giornata.',
+      'Terzo stop, $X. Danno piccolo, avvertimento grande. Chiudi.',
+      '3 rossi, $X. Stai vincendo a perdere. Categoria di nicchia, ma la domini.',
+    ],
+    mid: [
+      'Tris di rossi, $X. Questo non è trading, è una donazione con bonifico ricorrente.',
+      'Tre stop, $X. Cerchi il bottom? L\'hai trovato: è il tuo umore.',
+      '3 perdite, $X. Il revenge sta vincendo 3 a 0. Vuoi davvero giocare i supplementari?',
+    ],
+    high: [
+      '$X in tre trade. Hai trovato un modo per perdere più veloce del mercato stesso. Bravo.',
+      'Tre stop, $X in fumo. Stacca. Il quarto non è un trade, è un capriccio costoso.',
+      '$X e tre rossi. Il tuo conto ha appena chiesto asilo politico.',
+    ],
+  },
+  t4: {
+    low: [
+      'Quarto stop per $X. Perdere poco quattro volte di fila è un talento. Sprecalo domani.',
+      '4 rossi, $X. Perdi soldi e tempo. Almeno il tempo salvalo: spegni.',
+      'Quattro di fila, $X. Insistere su poco è comunque insistere. Stop.',
+    ],
+    mid: [
+      '$X in quattro trade. Il pulsante "compra" lo usi benissimo. Quello "basta" è lì di fianco.',
+      'Quarto stop, $X. Il tuo broker sta valutando un regalo di Natale a tuo nome.',
+      '4 rossi, $X. Non è più una giornata storta, è una scelta di vita. Cambiala oggi.',
+    ],
+    high: [
+      '$X in quattro trade. Hai reinventato la macchina brucia-soldi. Brevettala, almeno.',
+      'Quinto? Sesto? $X persi e ancora qui. Il problema non è il grafico. Sei tu, con affetto.',
+      '$X in fumo oggi. Chiudi. Tutto. Adesso. Te lo dice l\'app, visto che a te non dai retta.',
+    ],
+  },
+};
+
+function tiltBannerText(streak, lossToday) {
+  const money = '$' + Math.round(lossToday);
+  const sKey = streak >= 4 ? 't4' : (streak === 3 ? 't3' : 't2');
+  const pool = TILT_MSGS[sKey][moneyTier(lossToday)];
+  const idx = (streak * 7 + Math.round(lossToday)) % pool.length;
+  return pool[idx].replace(/\$X/g, money);
+}
+
+// Deriva tp_respected/sl_respected da outcome (per stats backward-compat)
+function deriveDiscipline(outcome, rr_actual) {
+  // tp_respected: vero solo se WIN (preso TP pieno)
+  // sl_respected: vero se WIN/BE/PARTIAL, oppure LOSS con |R| <= 1 (no overshoot)
+  const tp_respected = outcome === 'win';
+  let sl_respected;
+  if (outcome === 'loss') sl_respected = Math.abs(rr_actual) <= 1;
+  else sl_respected = true;
+  return { tp_respected, sl_respected };
+}
+
+// Calcola il moltiplicatore R corrente dal form (per modalità $)
+function currentFormR() {
+  const f = state.form;
+  if (f.outcome === 'win') return parseFloat(f.rr_planned) || 0;
+  if (f.outcome === 'partial') return parseFloat(f.rr_actual) || 0;
+  if (f.outcome === 'loss') return parseFloat(f.rr_actual) || 0;
+  return 0;
+}
+
+// Calcola il rischio derivato dal risultato inserito: { riskDollar, pct } oppure null
+// Sincronizza i campi Rischio % e Risultato $ in base all'ultimo modificato.
+// pct → $ : risultato = (rischio% / 100 × capitale) × |R|
+// $ → pct: rischio% = (risultato / |R|) / capitale × 100
+function syncRiskFields() {
+  const f = state.form;
+  const R = Math.abs(currentFormR());
+  const acc = currentAccount();
+  // In MODIFICA di un trade esistente: usa il capitale RICOSTRUITO alla data del trade
+  // (la stessa fonte del dettaglio), non il capitale corrente — altrimenti il $ esce gonfiato.
+  let cap;
+  if (state.editingId) {
+    const et = state.trades.find(x => x.id === state.editingId);
+    if (et) {
+      const eacc = state.config.accounts.find(a => a.id === et.account_id) || acc;
+      if (et.capital_used != null) {
+        cap = et.capital_used;
+      } else {
+        const sorted = state.trades
+          .filter(x => x.account_id === et.account_id)
+          .sort((a, b) => a.iso.localeCompare(b.iso));
+        cap = capitalAtTrade(et, sorted, eacc);
+      }
+    } else {
+      cap = currentCapital(acc.id);
+    }
+  } else {
+    cap = currentCapital(acc.id);
+  }
+  const pctEl = document.getElementById('risk-pct');
+  const dolEl = document.getElementById('result-dollar');
+
+  // Senza R (nessun esito) o senza capitale non posso collegarli
+  if (R && cap > 0) {
+    if (f.last_edited === 'dollar') {
+      const result = parseFloat(f.result_dollar);
+      if (!isNaN(result) && f.result_dollar !== '') {
+        const pct = ((result / R) / cap) * 100;
+        f.risk_pct = pct.toFixed(2);
+        if (pctEl && document.activeElement !== pctEl) pctEl.value = f.risk_pct;
+      }
+    } else {
+      const pct = parseFloat(f.risk_pct);
+      if (!isNaN(pct) && f.risk_pct !== '') {
+        const result = (pct / 100 * cap) * R;
+        f.result_dollar = result.toFixed(2);
+        if (dolEl && document.activeElement !== dolEl) dolEl.value = f.result_dollar;
+      }
+    }
+  }
+  // Hint sotto la casella $
+  const hint = document.getElementById('result-dollar-hint');
+  if (hint) {
+    const pct = parseFloat(f.risk_pct);
+    if (!isNaN(pct) && cap > 0) {
+      const riskDollar = pct / 100 * cap;
+      hint.innerHTML = `Rischio: <strong>$${riskDollar.toFixed(2)}</strong> (${pct.toFixed(2)}% del capitale).`;
+    } else {
+      hint.innerHTML = 'Cambia il rischio % o i $: si aggiornano a vicenda.';
+    }
+  }
+}
+
+// ============================================================
+//  INDEXEDDB
+// ============================================================
+const DB_NAME = 'tradelog';
+const DB_VERSION = 5;
+const TRADES_STORE = 'trades';
+const CONFIG_STORE = 'config';
+
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      const tx = e.target.transaction;
+      if (!db.objectStoreNames.contains(TRADES_STORE)) {
+        db.createObjectStore(TRADES_STORE, { keyPath: 'id' });
+      }
+      if (!db.objectStoreNames.contains(CONFIG_STORE)) {
+        db.createObjectStore(CONFIG_STORE, { keyPath: 'key' });
+      }
+      // Migrazione v1 -> v2: aggiungi account_id e tags ai trade esistenti
+      if (e.oldVersion < 2 && db.objectStoreNames.contains(TRADES_STORE)) {
+        const store = tx.objectStore(TRADES_STORE);
+        const getReq = store.getAll();
+        getReq.onsuccess = () => {
+          getReq.result.forEach(t => {
+            let needsUpdate = false;
+            if (!t.account_id) { t.account_id = 'acc1'; needsUpdate = true; }
+            if (!Array.isArray(t.tags)) { t.tags = []; needsUpdate = true; }
+            if (t.risk_pct == null) { t.risk_pct = 1.0; needsUpdate = true; }
+            if (needsUpdate) store.put(t);
+          });
+        };
+      }
+      // Migrazione v2 -> v3: deriva 'outcome' (win/be/partial/loss) dai trade esistenti
+      if (e.oldVersion < 3 && db.objectStoreNames.contains(TRADES_STORE)) {
+        const store = tx.objectStore(TRADES_STORE);
+        const getReq = store.getAll();
+        getReq.onsuccess = () => {
+          getReq.result.forEach(t => {
+            if (!t.outcome) {
+              t.outcome = deriveOutcome(t);
+              store.put(t);
+            }
+          });
+        };
+      }
+      // Migrazione v3 -> v4: aggiungi campo 'context' (vuoto) ai trade esistenti
+      if (e.oldVersion < 4 && db.objectStoreNames.contains(TRADES_STORE)) {
+        const store = tx.objectStore(TRADES_STORE);
+        const getReq = store.getAll();
+        getReq.onsuccess = () => {
+          getReq.result.forEach(t => {
+            if (t.context === undefined) {
+              t.context = null;
+              store.put(t);
+            }
+          });
+        };
+      }
+      // Migrazione v4 -> v5: aggiungi campo 'timeframe' (vuoto) ai trade esistenti
+      if (e.oldVersion < 5 && db.objectStoreNames.contains(TRADES_STORE)) {
+        const store = tx.objectStore(TRADES_STORE);
+        const getReq = store.getAll();
+        getReq.onsuccess = () => {
+          getReq.result.forEach(t => {
+            if (t.timeframe === undefined) {
+              t.timeframe = null;
+              store.put(t);
+            }
+          });
+        };
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function dbGetAll(storeName) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, 'readonly');
+    const req = tx.objectStore(storeName).getAll();
+    req.onsuccess = () => resolve(req.result || []);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function dbPut(storeName, value) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, 'readwrite');
+    tx.objectStore(storeName).put(value);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function dbDelete(storeName, id) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, 'readwrite');
+    tx.objectStore(storeName).delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function dbClear(storeName) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, 'readwrite');
+    tx.objectStore(storeName).clear();
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function dbBulkPut(storeName, values) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, 'readwrite');
+    const store = tx.objectStore(storeName);
+    values.forEach(v => store.put(v));
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function saveConfig() {
+  await dbPut(CONFIG_STORE, { key: 'main', value: JSON.stringify(state.config) });
+}
+
+async function loadConfig() {
+  try {
+    const items = await dbGetAll(CONFIG_STORE);
+    const main = items.find(i => i.key === 'main');
+    if (main && main.value) {
+      const parsed = JSON.parse(main.value);
+      state.config = { ...DEFAULT_CONFIG, ...parsed };
+      // Garantisci che ogni campo esista
+      if (!Array.isArray(state.config.accounts) || state.config.accounts.length === 0) {
+        state.config.accounts = DEFAULT_CONFIG.accounts;
+      }
+      if (!Array.isArray(state.config.assets)) state.config.assets = DEFAULT_CONFIG.assets;
+      if (!Array.isArray(state.config.setups)) state.config.setups = DEFAULT_CONFIG.setups;
+      if (!Array.isArray(state.config.tags)) state.config.tags = DEFAULT_CONFIG.tags;
+      if (!Array.isArray(state.config.error_tags)) state.config.error_tags = DEFAULT_CONFIG.error_tags;
+      if (!Array.isArray(state.config.contexts)) state.config.contexts = DEFAULT_CONFIG.contexts;
+      if (!Array.isArray(state.config.timeframes)) state.config.timeframes = DEFAULT_CONFIG.timeframes;
+    } else {
+      state.config = { ...DEFAULT_CONFIG };
+      await saveConfig();
+    }
+  } catch (e) {
+    console.error('loadConfig error', e);
+    state.config = { ...DEFAULT_CONFIG };
+  }
+}
+
+// ============================================================
+//  INIT
+// ============================================================
+async function init() {
+  await loadConfig();
+  applyTheme(state.config.theme || 'editorial');
+  try {
+    state.trades = await dbGetAll(TRADES_STORE);
+    state.trades.sort((a, b) => a.n - b.n);
+  } catch (e) {
+    console.error('load trades', e);
+  }
+  state.loading = false;
+  // Defaults form
+  state.form.asset = state.config.assets[0] || '';
+  const acc = currentAccount();
+  state.form.risk_pct = String(acc.risk_pct);
+  bindEvents();
+  setupBackHandler();
+  render();
+}
+
+// Navigazione con supporto al tasto "indietro" del telefono (modello trap+rearm).
+// Entrare in una sotto-vista cambia solo lo stato; il tasto indietro risale di un
+// livello dentro l'app e ri-arma la trappola, così l'app non si chiude finché non sei al root.
+function navOpen(view, extra) {
+  // Salva lo stato di navigazione CORRENTE nello stack (cronologia, come il browser),
+  // così il tasto indietro ripercorre i passi nell'ordine in cui sono stati fatti.
+  state.navStack.push({
+    view: state.view,
+    detailId: state.detailId,
+    detailFrom: state.detailFrom,
+    groupDim: state.groupDim,
+    groupVal: state.groupVal,
+  });
+  if (extra) Object.assign(state, extra);
+  state.view = view;
+  render();
+}
+// Risale di un passo nella cronologia. Ritorna true se ha navigato, false se non c'è storia (root).
+function goUp() {
+  if (state.editingId) { cancelEdit(); return true; }
+  if (state.navStack.length > 0) {
+    const prev = state.navStack.pop();
+    state.view = prev.view;
+    state.detailId = prev.detailId;
+    state.detailFrom = prev.detailFrom;
+    state.groupDim = prev.groupDim;
+    state.groupVal = prev.groupVal;
+    render();
+    return true;
+  }
+  return false; // nessuna storia: un ulteriore "indietro" chiude l'app
+}
+function navBack() { goUp(); } // usato dai pulsanti "indietro" dentro l'app
+function setupBackHandler() {
+  try { history.pushState({ trap: true }, ''); } catch (e) {}
+  window.addEventListener('popstate', () => {
+    const consumed = goUp();
+    if (consumed) {
+      // ri-arma la trappola così il prossimo "indietro" viene di nuovo intercettato
+      try { history.pushState({ trap: true }, ''); } catch (e) {}
+    }
+    // se al root: non ri-armiamo → un ulteriore "indietro" chiude l'app
+  });
+}
+
+function currentAccount() {
+  return state.config.accounts.find(a => a.id === state.config.current_account_id) || state.config.accounts[0];
+}
+
+function tradesForCurrentAccount() {
+  return state.trades.filter(t => t.account_id === state.config.current_account_id);
+}
+
+// Calcola il capitale dell'account al momento di un trade specifico
+// (capitale iniziale + somma P&L di tutti i trade chiusi PRIMA di quello)
+function capitalAtTrade(trade, sortedTrades, acc) {
+  let cap = acc.capital;
+  for (const t of sortedTrades) {
+    if (t.iso >= trade.iso) break;
+    if (t.risk_amount != null) {
+      cap += t.rr_actual * t.risk_amount;
+    } else {
+      // Usa il capitale al momento del trade precedente (ricorsivo) o capital_used se override
+      const base = t.capital_used != null ? t.capital_used : cap;
+      const risk = (t.risk_pct || acc.risk_pct) / 100;
+      cap += t.rr_actual * risk * base;
+    }
+  }
+  return cap;
+}
+
+// Capitale corrente totale dell'account (= capitale iniziale + tutti i P&L)
+function currentCapital(accId) {
+  const acc = state.config.accounts.find(a => a.id === accId) || currentAccount();
+  const trades = state.trades
+    .filter(t => t.account_id === accId)
+    .sort((a, b) => a.iso.localeCompare(b.iso));
+  let cap = acc.capital;
+  trades.forEach(t => {
+    if (t.risk_amount != null) {
+      cap += t.rr_actual * t.risk_amount;
+    } else {
+      const base = t.capital_used != null ? t.capital_used : cap;
+      const risk = (t.risk_pct || acc.risk_pct) / 100;
+      cap += t.rr_actual * risk * base;
+    }
+  });
+  return cap;
+}
+
+// ============================================================
+//  ACTIONS
+// ============================================================
+async function addTrade() {
+  const f = state.form;
+  const useDollar = f.last_edited === 'dollar' && f.result_dollar !== '' && f.outcome && f.outcome !== 'be';
+  const missing = [];
+  if (!f.rr_planned) missing.push('R/R pianificato');
+  if (f.outcome === null) missing.push('Esito');
+  if ((f.outcome === 'partial' || f.outcome === 'loss') && f.rr_actual === '') missing.push('R/R reale');
+
+  if (missing.length > 0) {
+    showToast('Compila: ' + missing.join(', '), 'error');
+    return;
+  }
+
+  // Deriva rr_actual da outcome
+  const rrPlanned = parseFloat(f.rr_planned);
+  let rr_actual;
+  switch (f.outcome) {
+    case 'win': rr_actual = rrPlanned; break;
+    case 'be': rr_actual = 0; break;
+    case 'partial': rr_actual = Math.abs(parseFloat(f.rr_actual)); break;
+    case 'loss': rr_actual = -Math.abs(parseFloat(f.rr_actual)); break;
+  }
+
+  // Deriva tp_respected / sl_respected per compatibilità
+  const disc = deriveDiscipline(f.outcome, rr_actual);
+
+  // Se hai inserito il risultato $: deriva il rischio esatto (risk = |risultato| / |R|)
+  // Altrimenti: usa rischio % × capitale (con eventuale capitale custom)
+  let finalRiskAmount, finalCapitalUsed;
+  if (useDollar) {
+    finalRiskAmount = Math.abs(parseFloat(f.result_dollar)) / Math.abs(rr_actual);
+    finalCapitalUsed = null;
+  } else {
+    finalRiskAmount = f.risk_amount === '' ? null : parseFloat(f.risk_amount);
+    finalCapitalUsed = f.capital_used === '' ? null : parseFloat(f.capital_used);
+  }
+
+  // MODALITÀ MODIFICA
+  if (state.editingId) {
+    const existing = state.trades.find(t => t.id === state.editingId);
+    if (existing) {
+      existing.direction = f.direction;
+      existing.asset = f.asset;
+      existing.setup = f.setup;
+      existing.context = f.context || null;
+      existing.timeframe = f.timeframe || null;
+      existing.outcome = f.outcome;
+      existing.tp_respected = disc.tp_respected;
+      existing.sl_respected = disc.sl_respected;
+      existing.rr_planned = rrPlanned;
+      existing.rr_actual = rr_actual;
+      existing.risk_pct = parseFloat(f.risk_pct) || existing.risk_pct;
+      existing.risk_amount = finalRiskAmount;
+      existing.capital_used = finalCapitalUsed;
+      existing.tags = [...f.tags];
+      existing.note = f.note.trim();
+      try {
+        await dbPut(TRADES_STORE, existing);
+        state.editingId = null;
+        resetForm();
+        showToast('✓ Trade modificato', 'success');
+        render();
+      } catch (e) {
+        showToast('Errore salvataggio', 'error');
+        console.error(e);
+      }
+    }
+    return;
+  }
+
+  // MODALITÀ CREAZIONE
+  const acc = currentAccount();
+  const tradesInAcc = tradesForCurrentAccount();
+
+  const trade = {
+    id: Date.now(),
+    n: tradesInAcc.length + 1,
+    account_id: acc.id,
+    direction: f.direction,
+    asset: f.asset,
+    setup: f.setup,
+    context: f.context || null,
+    timeframe: f.timeframe || null,
+    outcome: f.outcome,
+    tp_respected: disc.tp_respected,
+    sl_respected: disc.sl_respected,
+    rr_planned: rrPlanned,
+    rr_actual: rr_actual,
+    risk_pct: parseFloat(f.risk_pct) || acc.risk_pct,
+    risk_amount: finalRiskAmount,
+    capital_used: finalCapitalUsed,
+    tags: [...f.tags],
+    note: f.note.trim(),
+    ts: new Date().toLocaleDateString('it-IT'),
+    iso: new Date().toISOString(),
+  };
+
+  try {
+    await dbPut(TRADES_STORE, trade);
+    state.trades.push(trade);
+    resetForm();
+    showToast('✓ Trade salvato', 'success');
+    render();
+  } catch (e) {
+    showToast('Errore salvataggio', 'error');
+    console.error(e);
+  }
+}
+
+function startEdit(id) {
+  const t = state.trades.find(x => x.id === id);
+  if (!t) return;
+  state.editingId = id;
+  const outcome = t.outcome || deriveOutcome(t);
+  // Per partial/loss l'input mostra il valore assoluto (positivo)
+  const rrInput = (outcome === 'partial' || outcome === 'loss')
+    ? String(Math.abs(t.rr_actual))
+    : '';
+  // Se il trade ha risk_amount esplicito → fu salvato dal lato $
+  const hadDollar = t.risk_amount != null;
+  const resultDollar = hadDollar ? String(Math.abs(t.rr_actual * t.risk_amount)) : '';
+  state.form = {
+    direction: t.direction,
+    asset: t.asset,
+    setup: t.setup,
+    context: t.context || '',
+    timeframe: t.timeframe || '',
+    rr_planned: String(t.rr_planned),
+    risk_pct: String(t.risk_pct),
+    risk_amount: t.risk_amount != null ? String(t.risk_amount) : '',
+    capital_used: t.capital_used != null ? String(t.capital_used) : '',
+    result_dollar: resultDollar,
+    last_edited: hadDollar ? 'dollar' : 'pct',
+    outcome: outcome,
+    tp_respected: t.tp_respected,
+    sl_respected: t.sl_respected,
+    rr_actual: rrInput,
+    tags: [...(t.tags || [])],
+    note: t.note || '',
+  };
+  // Popola UI
+  document.getElementById('rr-planned').value = state.form.rr_planned;
+  document.getElementById('rr-actual').value = rrInput;
+  document.getElementById('risk-pct').value = state.form.risk_pct;
+  document.getElementById('risk-amt').value = state.form.capital_used;
+  document.getElementById('result-dollar').value = resultDollar;
+  document.getElementById('note').value = state.form.note;
+  if (state.form.capital_used !== '') {
+    document.getElementById('risk-amt').classList.remove('hidden');
+    document.getElementById('risk-amt-hint').classList.remove('hidden');
+    document.getElementById('risk-amt-toggle').textContent = '− nascondi capitale custom';
+  }
+  if (state.form.note !== '') {
+    document.getElementById('note').classList.remove('hidden');
+    document.getElementById('note-toggle').textContent = '− nascondi nota libera';
+  }
+  state.view = 'log';
+  render();
+  // Scroll al form
+  setTimeout(() => {
+    document.getElementById('edit-banner').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 100);
+}
+
+function cancelEdit() {
+  state.editingId = null;
+  resetForm();
+  render();
+}
+
+async function deleteTrade(id) {
+  try {
+    await dbDelete(TRADES_STORE, id);
+    state.trades = state.trades.filter(t => t.id !== id);
+    // Rinumera i trade dell'account a cui apparteneva
+    const groups = {};
+    state.trades.forEach(t => {
+      groups[t.account_id] = groups[t.account_id] || [];
+      groups[t.account_id].push(t);
+    });
+    Object.values(groups).forEach(arr => {
+      arr.sort((a, b) => a.iso.localeCompare(b.iso));
+      arr.forEach((t, i) => { t.n = i + 1; });
+    });
+    await dbBulkPut(TRADES_STORE, state.trades);
+    render();
+  } catch (e) {
+    showToast('Errore eliminazione', 'error');
+    console.error(e);
+  }
+}
+
+function resetForm() {
+  const acc = currentAccount();
+  state.form = makeEmptyForm();
+  state.form.asset = state.config.assets[0] || '';
+  state.form.risk_pct = String(acc.risk_pct);
+  document.getElementById('rr-planned').value = '';
+  document.getElementById('rr-actual').value = '';
+  document.getElementById('risk-pct').value = String(acc.risk_pct);
+  document.getElementById('risk-amt').value = '';
+  document.getElementById('risk-amt').classList.add('hidden');
+  document.getElementById('risk-amt-hint').classList.add('hidden');
+  document.getElementById('risk-amt-toggle').textContent = '+ usa un capitale diverso per questo trade';
+  document.getElementById('result-dollar').value = '';
+  document.getElementById('note').value = '';
+  document.getElementById('note').classList.add('hidden');
+  document.getElementById('note-toggle').textContent = '+ aggiungi nota libera';
+}
+
+function showToast(msg, type) {
+  const el = document.getElementById('toast');
+  el.className = 'toast ' + (type || 'success');
+  el.textContent = (type === 'error' ? '⚠ ' : '') + msg;
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => { el.className = ''; el.textContent = ''; }, 3500);
+}
+
+// ============================================================
+//  EXPORT / IMPORT / RESET
+// ============================================================
+function exportData() {
+  if (state.trades.length === 0 && Object.keys(state.config).length === 0) {
+    showToast('Nessun dato da esportare', 'error');
+    return;
+  }
+  const data = {
+    version: 2, app: 'tradelog',
+    exported_at: new Date().toISOString(),
+    config: state.config,
+    trades: state.trades,
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const date = new Date().toISOString().slice(0, 10);
+  a.href = url; a.download = `tradelog-backup-${date}.json`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  // Memorizza la data dell'export per il promemoria mensile
+  state.config.last_export_iso = new Date().toISOString();
+  saveConfig().catch(e => console.error('saveConfig post-export', e));
+  showToast(`✓ ${state.trades.length} trade esportati`, 'success');
+  render();
+}
+
+function importData(file) {
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!data.trades || !Array.isArray(data.trades)) {
+        showToast('File non valido', 'error');
+        return;
+      }
+      const ok = confirm(
+        `Importare ${data.trades.length} trade?\n\n` +
+        `ATTENZIONE: sostituisce TUTTI i trade attuali (${state.trades.length}) e le configurazioni.\n\n` +
+        `OK per confermare, Annulla per uscire.`
+      );
+      if (!ok) return;
+      await dbClear(TRADES_STORE);
+      const sorted = [...data.trades].sort((a, b) => (a.iso || '').localeCompare(b.iso || ''));
+      // Rinumera per account
+      const groups = {};
+      sorted.forEach(t => {
+        const aid = t.account_id || 'acc1';
+        t.account_id = aid;
+        groups[aid] = groups[aid] || [];
+        groups[aid].push(t);
+      });
+      Object.values(groups).forEach(arr => {
+        arr.forEach((t, i) => { t.n = i + 1; });
+      });
+      await dbBulkPut(TRADES_STORE, sorted);
+      state.trades = sorted;
+      if (data.config) {
+        state.config = { ...DEFAULT_CONFIG, ...data.config };
+        await saveConfig();
+        applyTheme(state.config.theme || 'editorial');
+      }
+      showToast(`✓ Importati ${sorted.length} trade`, 'success');
+      render();
+    } catch (err) {
+      showToast('Errore lettura file', 'error');
+      console.error(err);
+    }
+  };
+  reader.readAsText(file);
+}
+
+async function resetAll() {
+  const sure = confirm('CANCELLARE TUTTO (trade e impostazioni)?\n\nQuesta azione è irreversibile. Esporta prima un backup se vuoi conservare i dati.');
+  if (!sure) return;
+  const reallysure = confirm('Ultima conferma: vuoi davvero cancellare tutto?');
+  if (!reallysure) return;
+  await dbClear(TRADES_STORE);
+  await dbClear(CONFIG_STORE);
+  state.trades = [];
+  state.config = { ...DEFAULT_CONFIG };
+  await saveConfig();
+  applyTheme(state.config.theme);
+  showToast('✓ Reset completato', 'success');
+  state.view = 'log';
+  render();
+}
+
+// ============================================================
+//  STATS CALCULATION
+// ============================================================
+function filteredTrades() {
+  let arr = tradesForCurrentAccount();
+  const f = state.filters;
+  if (f.asset !== 'all') arr = arr.filter(t => t.asset === f.asset);
+  if (f.direction !== 'all') arr = arr.filter(t => t.direction === f.direction);
+  if (f.setup !== 'all') arr = arr.filter(t => t.setup === f.setup);
+  if (f.tag !== 'all') arr = arr.filter(t => (t.tags || []).includes(f.tag));
+  if (f.dateRange !== 'all') {
+    const now = Date.now();
+    const days = f.dateRange === '30' ? 30 : f.dateRange === '90' ? 90 : 0;
+    if (days > 0) {
+      const cutoff = now - days * 24 * 60 * 60 * 1000;
+      arr = arr.filter(t => new Date(t.iso).getTime() >= cutoff);
+    }
+  }
+  return arr;
+}
+
+function calcStats(arr) {
+  const total = arr.length;
+  if (total === 0) return null;
+  const wins = arr.filter(t => t.rr_actual > 0);
+  const losses = arr.filter(t => t.rr_actual < 0);
+  const winRate = wins.length / total;
+  const lossRate = losses.length / total;
+  const avgRRPlanned = arr.reduce((s, t) => s + t.rr_planned, 0) / total;
+  const avgRRActual = arr.reduce((s, t) => s + t.rr_actual, 0) / total;
+  const avgWin = wins.length > 0 ? wins.reduce((s, t) => s + t.rr_actual, 0) / wins.length : 0;
+  const avgLoss = losses.length > 0 ? Math.abs(losses.reduce((s, t) => s + t.rr_actual, 0) / losses.length) : 0;
+  const expectancy = (winRate * avgWin) - (lossRate * avgLoss);
+  const sumWinR = wins.reduce((s, t) => s + t.rr_actual, 0);
+  const sumLossR = Math.abs(losses.reduce((s, t) => s + t.rr_actual, 0));
+  const profitFactor = sumLossR === 0 ? (sumWinR > 0 ? Infinity : 0) : sumWinR / sumLossR;
+
+  // Conteggio per outcome (con fallback per trade legacy)
+  const outcomes = arr.map(t => t.outcome || deriveOutcome(t));
+  const nWin = outcomes.filter(o => o === 'win').length;
+  const nBe = outcomes.filter(o => o === 'be').length;
+  const nPartial = outcomes.filter(o => o === 'partial').length;
+  const nLoss = outcomes.filter(o => o === 'loss').length;
+
+  // Disciplina derivata
+  // TP pieno: quanti WIN sui trade chiusi in profitto (WIN + PARZIALE)
+  const profitable = nWin + nPartial;
+  const tpResp = profitable > 0 ? nWin / profitable : null;
+  // SL contenuto: quanti LOSS con |R| <= 1 (non hai lasciato correre)
+  const slCleanCount = arr.filter((t, i) => outcomes[i] === 'loss' && Math.abs(t.rr_actual) <= 1).length;
+  const slResp = nLoss > 0 ? slCleanCount / nLoss : null;
+
+  // P&L in $
+  const acc = currentAccount();
+  // Capitale corrente dell'account = iniziale + somma di TUTTI i P&L precedenti (non filtrati)
+  const allAccTrades = tradesForCurrentAccount().sort((a, b) => a.iso.localeCompare(b.iso));
+  const pnlDollar = arr.reduce((s, t) => {
+    if (t.risk_amount != null) {
+      return s + (t.rr_actual * t.risk_amount);
+    }
+    // Base: capitale impiegato sul trade se specificato, altrimenti capitale corrente al momento del trade
+    const base = t.capital_used != null ? t.capital_used : capitalAtTrade(t, allAccTrades, acc);
+    const risk = (t.risk_pct || acc.risk_pct) / 100;
+    return s + (t.rr_actual * risk * base);
+  }, 0);
+  const roi = (pnlDollar / acc.capital) * 100;
+
+  // Totale $ effettivamente rischiati (per ROI sul rischiato)
+  const totalRisked = arr.reduce((s, t) => {
+    if (t.risk_amount != null) return s + Math.abs(t.risk_amount);
+    const base = t.capital_used != null ? t.capital_used : capitalAtTrade(t, allAccTrades, acc);
+    const risk = (t.risk_pct || acc.risk_pct) / 100;
+    return s + (risk * base);
+  }, 0);
+  const roiRisked = totalRisked > 0 ? (pnlDollar / totalRisked) * 100 : 0;
+
+  // --- Metriche avanzate per insight precisi ---
+  // Sui soli trade profittevoli (rr_actual > 0): pianificato vs reale.
+  // Qui "chiudere presto" ha senso; sulla media globale no (le perdite la falsano).
+  const avgPlannedWin = wins.length ? wins.reduce((a, t) => a + t.rr_planned, 0) / wins.length : 0;
+  const avgActualWin = wins.length ? wins.reduce((a, t) => a + t.rr_actual, 0) / wins.length : 0;
+  const rLeftOnTable = avgPlannedWin - avgActualWin; // R medio lasciato sul tavolo sui vincenti
+  const captureRatio = avgPlannedWin > 0 ? avgActualWin / avgPlannedWin : 1; // % di target catturato
+
+  // Direzione
+  const longCount = arr.filter(t => t.direction === 'long').length;
+  const shortCount = arr.filter(t => t.direction === 'short').length;
+
+  // Streak di perdite consecutive (ordine cronologico)
+  const chrono = arr.slice().sort((a, b) => a.iso.localeCompare(b.iso));
+  let maxLossStreak = 0, curLossStreak = 0, maxWinStreak = 0, curWinStreak = 0;
+  chrono.forEach(t => {
+    if (t.rr_actual < 0) { curLossStreak++; maxLossStreak = Math.max(maxLossStreak, curLossStreak); curWinStreak = 0; }
+    else if (t.rr_actual > 0) { curWinStreak++; maxWinStreak = Math.max(maxWinStreak, curWinStreak); curLossStreak = 0; }
+    else { curLossStreak = 0; curWinStreak = 0; }
+  });
+
+  return {
+    total, wins: wins.length, losses: losses.length,
+    winRate, avgRRPlanned, avgRRActual, expectancy, profitFactor,
+    tpResp, slResp, pnlDollar, roi, roiRisked, totalRisked, avgWin, avgLoss,
+    nWin, nBe, nPartial, nLoss, profitable, slCleanCount,
+    avgPlannedWin, avgActualWin, rLeftOnTable, captureRatio,
+    longCount, shortCount, maxLossStreak, maxWinStreak,
+  };
+}
+
+function equityCurveData(arr) {
+  const acc = currentAccount();
+  let eq = acc.capital;
+  const points = [{ n: 0, eq }];
+  const sorted = [...arr].sort((a, b) => a.iso.localeCompare(b.iso));
+  sorted.forEach((t, i) => {
+    let pnl;
+    if (t.risk_amount != null) {
+      pnl = t.rr_actual * t.risk_amount;
+    } else {
+      const base = t.capital_used != null ? t.capital_used : eq;
+      const risk = (t.risk_pct || acc.risk_pct) / 100;
+      pnl = t.rr_actual * risk * base;
+    }
+    eq = eq + pnl;
+    points.push({ n: i + 1, eq: parseFloat(eq.toFixed(2)) });
+  });
+  return points;
+}
+
+function breakdownBy(arr, key) {
+  const groups = {};
+  arr.forEach(t => {
+    const k = key === 'tag' ? null : (t[key] || '—');
+    if (key === 'tag') {
+      const tgs = t.tags || [];
+      if (tgs.length === 0) {
+        // Trade senza tag: gruppo '—' (la group-view lo mostra come "nessuno")
+        groups['—'] = groups['—'] || [];
+        groups['—'].push(t);
+      } else {
+        tgs.forEach(tag => {
+          groups[tag] = groups[tag] || [];
+          groups[tag].push(t);
+        });
+      }
+    } else {
+      groups[k] = groups[k] || [];
+      groups[k].push(t);
+    }
+  });
+  return Object.entries(groups).map(([k, ts]) => {
+    const s = calcStats(ts);
+    return { key: k, count: ts.length, stats: s };
+  }).sort((a, b) => b.count - a.count);
+}
+
+// ============================================================
+//  RENDER
+// ============================================================
+function render() {
+  // Subtitle
+  const acc = currentAccount();
+  const tradesInAcc = tradesForCurrentAccount();
+  const curCap = currentCapital(acc.id);
+  document.getElementById('subtitle').textContent =
+    state.loading ? 'CARICAMENTO…' : `${tradesInAcc.length} TRADE · ${acc.name.toUpperCase()} · $${curCap.toFixed(0)}`;
+
+  // Account tabs
+  renderAccountTabs();
+
+  // View tabs
+  document.querySelectorAll('.view-tab').forEach(b => {
+    b.classList.toggle('active', b.dataset.view === state.view && (state.view === 'log' || state.view === 'stats'));
+  });
+  document.getElementById('settings-btn').classList.toggle('active', state.view === 'settings');
+
+  // Views visibility
+  document.getElementById('log-view').classList.toggle('hidden', state.view !== 'log');
+  document.getElementById('stats-view').classList.toggle('hidden', state.view !== 'stats');
+  document.getElementById('detail-view').classList.toggle('hidden', state.view !== 'detail');
+  document.getElementById('settings-view').classList.toggle('hidden', state.view !== 'settings');
+  document.getElementById('group-view').classList.toggle('hidden', state.view !== 'group');
+  const isSub = state.view === 'settings' || state.view === 'detail' || state.view === 'group';
+  document.getElementById('view-tabs').classList.toggle('hidden', isSub);
+  document.getElementById('account-tabs').classList.toggle('hidden', isSub);
+  const showFooter = state.view === 'settings';
+  document.getElementById('footer-actions').classList.toggle('hidden', !showFooter);
+  document.getElementById('footer-back').style.display = showFooter ? 'inline-block' : 'none';
+
+  // Edit banner
+  const editBanner = document.getElementById('edit-banner');
+  const addBtn = document.getElementById('add-btn');
+  const formTitle = document.getElementById('form-title');
+  if (state.editingId) {
+    const t = state.trades.find(x => x.id === state.editingId);
+    if (t) {
+      editBanner.classList.remove('hidden');
+      document.getElementById('edit-banner-n').textContent = t.n;
+      addBtn.textContent = '✓ Salva modifiche';
+      formTitle.textContent = 'Modifica trade';
+    }
+  } else {
+    editBanner.classList.add('hidden');
+    addBtn.textContent = '+ Aggiungi trade';
+    formTitle.textContent = 'Nuovo trade';
+  }
+
+  // Banner anti-tilt (solo in inserimento nuovo trade, non in modifica)
+  const tiltBanner = document.getElementById('tilt-banner');
+  if (tiltBanner) {
+    const tilt = todayTiltState();
+    if (!state.editingId && tilt.streak >= 2) {
+      tiltBanner.textContent = tiltBannerText(tilt.streak, tilt.lossToday);
+      tiltBanner.classList.remove('hidden');
+    } else {
+      tiltBanner.classList.add('hidden');
+    }
+  }
+
+  // Promemoria backup mensile (>30 giorni dall'ultimo export, o mai esportato)
+  renderBackupBanner();
+
+  if (state.view === 'log') renderLog();
+  else if (state.view === 'stats') renderStats();
+  else if (state.view === 'detail') renderDetail();
+  else if (state.view === 'settings') renderSettings();
+  else if (state.view === 'group') renderGroup();
+}
+
+// Promemoria backup: appare nella log view se non esporti da >30 giorni.
+// La "×" lo nasconde fino alla prossima apertura dell'app (niente nag continuo).
+const BACKUP_REMINDER_DAYS = 30;
+function renderBackupBanner() {
+  const banner = document.getElementById('backup-banner');
+  if (!banner) return;
+  const show = (() => {
+    if (state.loading || state.backupBannerDismissed) return false;
+    if (state.trades.length === 0) return false;
+    const last = state.config.last_export_iso;
+    if (!last) return true; // dati presenti, mai esportato
+    const days = (Date.now() - new Date(last).getTime()) / 86400000;
+    return days > BACKUP_REMINDER_DAYS;
+  })();
+  if (!show) { banner.classList.add('hidden'); return; }
+  const last = state.config.last_export_iso;
+  const txt = document.getElementById('backup-banner-text');
+  if (!last) {
+    txt.textContent = `📥 ${state.trades.length} trade salvati solo sul telefono: non hai mai fatto un backup.`;
+  } else {
+    const days = Math.floor((Date.now() - new Date(last).getTime()) / 86400000);
+    txt.textContent = `📥 Ultimo backup ${days} giorni fa. I dati vivono solo sul telefono.`;
+  }
+  banner.classList.remove('hidden');
+}
+
+function renderAccountTabs() {
+  const box = document.getElementById('account-tabs');
+  box.innerHTML = '';
+  state.config.accounts.forEach(a => {
+    const btn = document.createElement('button');
+    btn.className = 'account-tab' + (a.id === state.config.current_account_id ? ' active' : '');
+    btn.textContent = a.name;
+    btn.onclick = async () => {
+      // Cambiare account mentre si modifica un trade è ambiguo: annulla l'edit
+      if (state.editingId) {
+        state.editingId = null;
+        resetForm();
+      }
+      state.config.current_account_id = a.id;
+      state.form.risk_pct = String(a.risk_pct);
+      document.getElementById('risk-pct').value = String(a.risk_pct);
+      await saveConfig();
+      render();
+    };
+    box.appendChild(btn);
+  });
+}
+
+function renderLog() {
+  // Form: direzione
+  document.getElementById('dir-long').classList.toggle('active', state.form.direction === 'long');
+  document.getElementById('dir-short').classList.toggle('active', state.form.direction === 'short');
+
+  // Asset dropdown
+  const assetSel = document.getElementById('asset');
+  if (assetSel.children.length !== state.config.assets.length || assetSel.value !== state.form.asset) {
+    assetSel.innerHTML = '';
+    state.config.assets.forEach(a => {
+      const opt = document.createElement('option');
+      opt.value = a; opt.textContent = a;
+      assetSel.appendChild(opt);
+    });
+    if (!state.form.asset && state.config.assets.length) state.form.asset = state.config.assets[0];
+    assetSel.value = state.form.asset;
+  }
+
+  // Setup chips
+  const setupBox = document.getElementById('setup-chips');
+  setupBox.innerHTML = '';
+  state.config.setups.forEach(s => {
+    const btn = document.createElement('button');
+    btn.className = 'chip' + (state.form.setup === s ? ' active' : '');
+    btn.textContent = s;
+    btn.onclick = () => { state.form.setup = state.form.setup === s ? '' : s; render(); };
+    setupBox.appendChild(btn);
+  });
+
+  // Context chips (Bull/Bear/Chop) — selezione singola come il setup
+  const ctxBox = document.getElementById('context-chips');
+  ctxBox.innerHTML = '';
+  (state.config.contexts || []).forEach(c => {
+    const btn = document.createElement('button');
+    btn.className = 'chip' + (state.form.context === c ? ' active' : '');
+    btn.textContent = c;
+    btn.onclick = () => { state.form.context = state.form.context === c ? '' : c; render(); };
+    ctxBox.appendChild(btn);
+  });
+
+  // Timeframe chips — selezione singola
+  const tfBox = document.getElementById('timeframe-chips');
+  tfBox.innerHTML = '';
+  (state.config.timeframes || []).forEach(tf => {
+    const btn = document.createElement('button');
+    btn.className = 'chip' + (state.form.timeframe === tf ? ' active' : '');
+    btn.textContent = tf;
+    btn.onclick = () => { state.form.timeframe = state.form.timeframe === tf ? '' : tf; render(); };
+    tfBox.appendChild(btn);
+  });
+
+  // Outcome chips
+  document.getElementById('out-win').classList.toggle('active', state.form.outcome === 'win');
+  document.getElementById('out-be').classList.toggle('active', state.form.outcome === 'be');
+  document.getElementById('out-partial').classList.toggle('active', state.form.outcome === 'partial');
+  document.getElementById('out-loss').classList.toggle('active', state.form.outcome === 'loss');
+
+  // R/R reale visibility (solo per PARZIALE e LOSS)
+  const needsRR = state.form.outcome === 'partial' || state.form.outcome === 'loss';
+  document.getElementById('rr-actual-wrap').classList.toggle('hidden', !needsRR);
+  // Label/hint dinamici
+  if (needsRR) {
+    const lbl = document.getElementById('rr-actual-label');
+    const hint = document.getElementById('rr-actual-hint');
+    if (state.form.outcome === 'partial') {
+      lbl.textContent = 'R/R preso *';
+      hint.textContent = 'Quanto profitto hai chiuso (positivo, ≤ pianificato).';
+    } else {
+      lbl.textContent = 'R/R perso *';
+      hint.textContent = 'Quanto SL hai preso (positivo). 1 = SL pieno · 0.5 = mezzo SL · >1 = oltre SL';
+    }
+  }
+
+  // Casella Risultato $ (appare quando c'è un esito con P&L: win/partial/loss)
+  const showResult = state.form.outcome === 'win' || state.form.outcome === 'partial' || state.form.outcome === 'loss';
+  document.getElementById('result-dollar-wrap').classList.toggle('hidden', !showResult);
+  if (showResult) {
+    document.getElementById('result-dollar-label').textContent = state.form.outcome === 'loss' ? '$ perso' : '$ guadagnato';
+  }
+  // Entrambi i campi restano editabili: sincronizza in base all'ultimo modificato
+  syncRiskFields();
+
+  // Tag chips — due gruppi: Esecuzione e Errori (un solo array form.tags sotto)
+  const renderTagGroup = (boxId, list) => {
+    const box = document.getElementById(boxId);
+    box.innerHTML = '';
+    (list || []).forEach(tg => {
+      const btn = document.createElement('button');
+      const active = state.form.tags.includes(tg);
+      btn.className = 'chip' + (active ? ' active' : '');
+      btn.textContent = tg;
+      btn.onclick = () => {
+        if (state.form.tags.includes(tg)) state.form.tags = state.form.tags.filter(x => x !== tg);
+        else state.form.tags.push(tg);
+        render();
+      };
+      box.appendChild(btn);
+    });
+  };
+  renderTagGroup('tag-chips', state.config.tags);
+  renderTagGroup('tag-chips-error', state.config.error_tags);
+
+  // Trade list — mostra solo gli ultimi N, con "mostra altri" per non scrollare all'infinito
+  const list = document.getElementById('trades-list');
+  const arr = tradesForCurrentAccount();
+  if (arr.length === 0) {
+    list.innerHTML = '<div class="empty">' + (state.loading ? '…' : 'nessun trade ancora') + '</div>';
+    return;
+  }
+  const ordered = [...arr].reverse(); // più recente in cima
+  const limit = state.logLimit || 15;
+  buildTradeRows(list, ordered.slice(0, limit), 'log');
+  if (ordered.length > limit) {
+    const more = document.createElement('button');
+    more.className = 'btn-secondary';
+    more.style.cssText = 'width:100%;margin-top:12px;';
+    more.textContent = `Mostra altri (${ordered.length - limit} rimanenti)`;
+    more.onclick = () => { state.logLimit = limit + 15; render(); };
+    list.appendChild(more);
+  }
+}
+
+// Costruisce le righe trade (riusato da log e da vista gruppo).
+// detailFrom = vista a cui tornare quando si chiude il dettaglio ('log' | 'group')
+function buildTradeRows(list, trades, detailFrom) {
+  list.innerHTML = '';
+  trades.forEach(t => {
+    const row = document.createElement('div');
+    row.className = 'trade-row';
+    row.setAttribute('data-open', t.id);
+    const valCls = t.rr_actual > 0 ? 'val-pos' : t.rr_actual === 0 ? 'val-zero' : 'val-neg';
+    const valSign = t.rr_actual > 0 ? '+' : '';
+    row.innerHTML = `
+      <div class="trade-n">#${t.n}</div>
+      <div class="trade-dir ${t.direction}">${t.direction.toUpperCase()}</div>
+      <div class="trade-asset">${escapeHtml(t.asset || '—')}</div>
+      <div class="trade-setup">${escapeHtml(t.setup || '—')}</div>
+      <div class="trade-rr ${valCls}">${valSign}${t.rr_actual}R</div>
+      <div class="trade-ts">${t.ts}</div>
+      ${(t.tags && t.tags.length) ? `<div class="trade-tags">${t.tags.map(tg => `<span class="tag-pill">${escapeHtml(tg)}</span>`).join('')}</div>` : ''}
+      ${t.note ? `<div class="trade-note">${escapeHtml(t.note)}</div>` : ''}
+    `;
+    list.appendChild(row);
+  });
+  list.querySelectorAll('[data-open]').forEach(el => {
+    let pressTimer = null;
+    let longPressed = false;
+    const id = parseInt(el.dataset.open);
+
+    const startPress = () => {
+      longPressed = false;
+      pressTimer = setTimeout(() => {
+        longPressed = true;
+        if (navigator.vibrate) navigator.vibrate(40);
+        showRowDeleteConfirm(el, id);
+      }, 700);
+    };
+    const cancelPress = () => { if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } };
+
+    el.addEventListener('touchstart', startPress, { passive: true });
+    el.addEventListener('touchend', cancelPress);
+    el.addEventListener('touchmove', cancelPress, { passive: true });
+    el.addEventListener('mousedown', startPress);
+    el.addEventListener('mouseup', cancelPress);
+    el.addEventListener('mouseleave', cancelPress);
+
+    el.onclick = (e) => {
+      if (longPressed) { e.preventDefault(); e.stopPropagation(); longPressed = false; return; }
+      navOpen('detail', { detailId: id, detailFrom: detailFrom || 'log' });
+    };
+  });
+}
+
+// Vista gruppo: mostra solo i trade di un certo valore (contesto/setup/tag/asset)
+function renderGroup() {
+  const dim = state.groupDim;   // 'context' | 'setup' | 'tag' | 'asset'
+  const val = state.groupVal;   // es. 'Bull', 'Higher low', '—' (vuoto)
+  const labelMap = { context: 'Contesto', setup: 'Setup', tag: 'Tag', asset: 'Asset', timeframe: 'Timeframe' };
+  const isEmpty = (val === '—');
+
+  const matches = tradesForCurrentAccount().filter(t => {
+    if (dim === 'tag') {
+      return isEmpty ? (!t.tags || t.tags.length === 0) : (t.tags || []).includes(val);
+    }
+    const v = t[dim];
+    return isEmpty ? (!v) : (v === val);
+  });
+
+  document.getElementById('group-title').textContent = isEmpty
+    ? `${labelMap[dim]}: (nessuno)` : `${labelMap[dim]}: ${val}`;
+  document.getElementById('group-title-sub').textContent =
+    `${matches.length} trade` + (isEmpty ? ' — manca questo campo' : '');
+
+  const listEl = document.getElementById('group-list');
+  if (matches.length === 0) {
+    listEl.innerHTML = '<div class="empty">nessun trade</div>';
+    return;
+  }
+  buildTradeRows(listEl, [...matches].reverse(), 'group');
+}
+
+// Conferma inline di eliminazione sulla riga (dopo tap lungo)
+function showRowDeleteConfirm(row, id) {
+  const t = state.trades.find(x => x.id === id);
+  if (!t) return;
+  row.innerHTML = `
+    <div class="row-confirm">
+      <span class="row-confirm-label">Eliminare il trade #${t.n}?</span>
+      <div class="row-confirm-actions">
+        <button class="btn-secondary" data-confirm-cancel>Annulla</button>
+        <button class="btn-danger" data-confirm-del>Elimina</button>
+      </div>
+    </div>`;
+  row.querySelector('[data-confirm-del]').onclick = (e) => { e.stopPropagation(); deleteTrade(id); };
+  row.querySelector('[data-confirm-cancel]').onclick = (e) => { e.stopPropagation(); render(); };
+}
+
+function renderDetail() {
+  const t = state.trades.find(x => x.id === state.detailId);
+  if (!t) {
+    state.view = 'log';
+    render();
+    return;
+  }
+  const acc = state.config.accounts.find(a => a.id === t.account_id) || currentAccount();
+  const valCls = t.rr_actual > 0 ? 'val-pos' : t.rr_actual === 0 ? 'val-zero' : 'val-neg';
+  const valSign = t.rr_actual > 0 ? '+' : '';
+
+  const sortedAccTrades = state.trades
+    .filter(x => x.account_id === t.account_id)
+    .sort((a, b) => a.iso.localeCompare(b.iso));
+  const capAtTrade = t.capital_used != null ? t.capital_used : capitalAtTrade(t, sortedAccTrades, acc);
+
+  // Calcolo P&L $ di questo singolo trade
+  let pnlSingle;
+  if (t.risk_amount != null) {
+    pnlSingle = t.rr_actual * t.risk_amount;
+  } else {
+    const risk = (t.risk_pct || acc.risk_pct) / 100;
+    pnlSingle = t.rr_actual * risk * capAtTrade;
+  }
+  const pnlSign = pnlSingle >= 0 ? '+' : '';
+
+  let riskedDisplay;
+  if (t.risk_amount != null) {
+    // Trade salvato in modalità $ (rischio esplicito derivato dal risultato)
+    const pctOfCap = capAtTrade > 0 ? (t.risk_amount / capAtTrade) * 100 : 0;
+    riskedDisplay = `$${t.risk_amount.toFixed(2)} (${pctOfCap.toFixed(2)}% del capitale)`;
+  } else if (t.capital_used != null) {
+    riskedDisplay = `${(t.risk_pct || acc.risk_pct)}% × $${t.capital_used} = $${((t.risk_pct || acc.risk_pct) / 100 * t.capital_used).toFixed(0)} (capitale custom)`;
+  } else {
+    riskedDisplay = `${(t.risk_pct || acc.risk_pct)}% × $${capAtTrade.toFixed(0)} = $${((t.risk_pct || acc.risk_pct) / 100 * capAtTrade).toFixed(0)}`;
+  }
+
+  // Etichetta esito (con fallback per trade legacy)
+  const outcomeKey = t.outcome || deriveOutcome(t);
+  const outcomeMap = { win: 'WIN', be: 'BE', partial: 'PARZIALE', loss: 'LOSS' };
+  const outcomeLabel = outcomeMap[outcomeKey] || '—';
+
+  document.getElementById('detail-title').textContent = `Trade #${t.n}`;
+  document.getElementById('detail-title-sub').textContent = `${acc.name} · ${t.ts}`;
+
+  const tagsHtml = (t.tags && t.tags.length)
+    ? `<div class="detail-tags-list">${t.tags.map(tg => `<span class="tag-pill">${escapeHtml(tg)}</span>`).join('')}</div>`
+    : '<div class="detail-field-value italic" style="color: var(--text-muted)">nessun tag</div>';
+
+  const noteHtml = t.note
+    ? `<div class="detail-note">${escapeHtml(t.note)}</div>`
+    : '<div class="detail-field-value italic" style="color: var(--text-muted)">nessuna nota</div>';
+
+  document.getElementById('detail-content').innerHTML = `
+    <div class="detail-panel">
+      <div class="detail-grid">
+        <div>
+          <div class="detail-field-label">Direzione</div>
+          <div class="detail-field-value big trade-dir ${t.direction}">${t.direction.toUpperCase()}</div>
+        </div>
+        <div>
+          <div class="detail-field-label">Coppia</div>
+          <div class="detail-field-value big">${escapeHtml(t.asset || '—')}</div>
+        </div>
+        <div class="detail-grid-full">
+          <div class="detail-field-label">Setup</div>
+          <div class="detail-field-value italic">${escapeHtml(t.setup || '—')}</div>
+        </div>
+        <div class="detail-grid-full">
+          <div class="detail-field-label">Contesto mercato</div>
+          <div class="detail-field-value italic">${escapeHtml(t.context || '—')}</div>
+        </div>
+        <div class="detail-grid-full">
+          <div class="detail-field-label">Timeframe</div>
+          <div class="detail-field-value italic">${escapeHtml(t.timeframe || '—')}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="detail-panel">
+      <div class="detail-grid">
+        <div class="detail-grid-full">
+          <div class="detail-field-label">Esito</div>
+          <div class="detail-field-value big">${outcomeLabel}</div>
+        </div>
+        <div>
+          <div class="detail-field-label">R/R pianificato</div>
+          <div class="detail-field-value big">${t.rr_planned}R</div>
+        </div>
+        <div>
+          <div class="detail-field-label">R/R reale</div>
+          <div class="detail-field-value big ${valCls}">${valSign}${t.rr_actual}R</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="detail-panel">
+      <div class="detail-grid">
+        <div class="detail-grid-full">
+          <div class="detail-field-label">$ rischiati su questo trade</div>
+          <div class="detail-field-value">${riskedDisplay}</div>
+        </div>
+        <div class="detail-grid-full">
+          <div class="detail-field-label">P&amp;L $ di questo trade</div>
+          <div class="detail-field-value big ${valCls}">${pnlSign}$${pnlSingle.toFixed(2)}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="detail-panel">
+      <div class="detail-field-label">Tag esecuzione</div>
+      ${tagsHtml}
+    </div>
+
+    <div class="detail-panel">
+      <div class="detail-field-label">Nota</div>
+      ${noteHtml}
+    </div>
+
+    <div class="detail-actions">
+      <button class="btn-secondary" id="detail-edit-btn">✏ Modifica</button>
+      <button class="btn-danger" id="detail-delete-btn">🗑 Elimina</button>
+    </div>
+  `;
+
+  document.getElementById('detail-edit-btn').onclick = () => {
+    startEdit(t.id);
+  };
+  document.getElementById('detail-delete-btn').onclick = () => {
+    if (confirm('Eliminare questo trade?\n\nL\'azione è irreversibile.')) {
+      const idToDelete = t.id;
+      goUp();
+      deleteTrade(idToDelete);
+    }
+  };
+}
+
+
+function renderStats() {
+  // Filtri
+  renderFilters();
+
+  const arr = filteredTrades();
+  const container = document.getElementById('stats-content');
+  if (arr.length === 0) {
+    container.innerHTML = '<div class="empty">nessun trade con i filtri correnti</div>';
+    return;
+  }
+  const s = calcStats(arr);
+  const acc = currentAccount();
+
+  const pf = isFinite(s.profitFactor) ? s.profitFactor.toFixed(2) : '∞';
+  const pnlSign = s.pnlDollar >= 0 ? '+' : '';
+  const roiSign = s.roi >= 0 ? '+' : '';
+
+  const f0 = state.filters;
+  const filtersActive = f0.dateRange !== 'all' || f0.asset !== 'all' || f0.setup !== 'all' || f0.tag !== 'all';
+  const eqTitle = filtersActive
+    ? 'Equity curve — solo trade filtrati (curva ipotetica)'
+    : `Equity curve (capitale $${acc.capital.toFixed(0)})`;
+
+  let html = `
+    <div class="stat-grid">
+      <div class="stat-box">
+        <div class="stat-label">Win Rate</div>
+        <div class="stat-value ${s.winRate >= 0.5 ? 'val-pos' : 'val-neg'}">${(s.winRate*100).toFixed(0)}%</div>
+        <div class="stat-sub">${s.wins}/${s.total} trade</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Expectancy</div>
+        <div class="stat-value ${s.expectancy > 0 ? 'val-pos' : s.expectancy === 0 ? 'val-zero' : 'val-neg'}">${s.expectancy >= 0 ? '+' : ''}${s.expectancy.toFixed(2)}R</div>
+        <div class="stat-sub">per trade</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Profit Factor</div>
+        <div class="stat-value ${parseFloat(pf) >= 1 || pf === '∞' ? 'val-pos' : 'val-neg'}">${pf}</div>
+        <div class="stat-sub">vinte / perse</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">P&amp;L</div>
+        <div class="stat-value ${s.pnlDollar > 0 ? 'val-pos' : s.pnlDollar === 0 ? 'val-zero' : 'val-neg'}">${pnlSign}$${s.pnlDollar.toFixed(0)}</div>
+        <div class="stat-sub">ROI account ${roiSign}${s.roi.toFixed(1)}% · ROI rischiato ${s.roiRisked >= 0 ? '+' : ''}${s.roiRisked.toFixed(1)}%</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">R/R Pianif. / Reale</div>
+        <div class="stat-value small">${s.avgRRPlanned.toFixed(2)} / <span class="${s.avgRRActual >= 0 ? 'val-pos' : 'val-neg'}">${s.avgRRActual >= 0 ? '+' : ''}${s.avgRRActual.toFixed(2)}</span></div>
+        <div class="stat-sub">media R</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">TP pieno / SL contenuto</div>
+        <div class="stat-value small">${s.tpResp != null ? `<span class="${s.tpResp >= 0.6 ? 'val-pos' : 'val-neg'}">${(s.tpResp*100).toFixed(0)}%</span>` : `<span class="val-zero">—</span>`} / ${s.slResp != null ? `<span class="${s.slResp >= 0.8 ? 'val-pos' : 'val-neg'}">${(s.slResp*100).toFixed(0)}%</span>` : `<span class="val-zero">—</span>`}</div>
+        <div class="stat-sub">${s.nWin}/${s.profitable} prof · ${s.slCleanCount}/${s.nLoss} loss</div>
+      </div>
+    </div>
+
+    <button class="btn-secondary" id="copy-report-btn" style="width:100%; margin-bottom:14px;">📋 Copia report per analisi AI</button>
+
+    <div class="panel">
+      <div class="panel-title">${eqTitle}</div>
+      <div id="equity-chart"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">R/R pianificato vs reale</div>
+      <div id="bar-chart"></div>
+    </div>
+  `;
+
+  // Breakdowns
+  const byAsset = breakdownBy(arr, 'asset');
+  const bySetup = breakdownBy(arr, 'setup');
+  const byTag = breakdownBy(arr, 'tag');
+  const byContext = breakdownBy(arr, 'context');
+  const byTimeframe = breakdownBy(arr, 'timeframe');
+
+  if (byContext.length > 1) {
+    html += `
+      <div class="panel">
+        <div class="panel-title">Breakdown per contesto mercato</div>
+        ${renderBreakdown(byContext, 'context')}
+      </div>`;
+  }
+  if (byTimeframe.length > 1) {
+    html += `
+      <div class="panel">
+        <div class="panel-title">Breakdown per timeframe</div>
+        ${renderBreakdown(byTimeframe, 'timeframe')}
+      </div>`;
+  }
+  if (byAsset.length > 1) {
+    html += `
+      <div class="panel">
+        <div class="panel-title">Breakdown per asset</div>
+        ${renderBreakdown(byAsset, 'asset')}
+      </div>`;
+  }
+  if (bySetup.length > 1) {
+    html += `
+      <div class="panel">
+        <div class="panel-title">Breakdown per setup</div>
+        ${renderBreakdown(bySetup, 'setup')}
+      </div>`;
+  }
+  if (byTag.length > 0) {
+    html += `
+      <div class="panel">
+        <div class="panel-title">Breakdown per tag</div>
+        ${renderBreakdown(byTag, 'tag')}
+      </div>`;
+  }
+
+  // Insights
+  if (arr.length >= 5) {
+    html += renderInsights(s, byAsset, bySetup, byTag);
+  }
+
+  container.innerHTML = html;
+
+  const reportBtn = document.getElementById('copy-report-btn');
+  if (reportBtn) reportBtn.onclick = copyReport;
+
+  container.querySelectorAll('[data-group-dim]').forEach(row => {
+    row.onclick = () => {
+      navOpen('group', { groupDim: row.dataset.groupDim, groupVal: row.dataset.groupVal });
+    };
+  });
+
+  drawEquityChart(equityCurveData(arr));
+  drawBarChart(arr);
+}
+
+// Costruisce un report testuale compatto dell'account attivo, pensato per l'analisi AI
+function buildReport() {
+  const arr = filteredTrades().slice().sort((a, b) => b.iso.localeCompare(a.iso));
+  if (arr.length === 0) { showToast('Nessun trade da includere', 'error'); return null; }
+  const acc = currentAccount();
+  const s = calcStats(arr);
+  const curCap = currentCapital(acc.id);
+  const pf = isFinite(s.profitFactor) ? s.profitFactor.toFixed(2) : 'infinito (nessuna perdita)';
+  const omap = { win: 'WIN', be: 'BE', partial: 'PARZIALE', loss: 'LOSS' };
+  const L = [];
+
+  L.push('Ecco il report del mio trading journal. Analizzalo e dimmi: punti di forza, errori ricorrenti, e cosa migliorare concretamente.');
+  L.push('');
+  L.push(`=== ACCOUNT: ${acc.name} — generato il ${new Date().toLocaleDateString('it-IT')} ===`);
+  L.push(`Capitale: iniziale $${acc.capital.toFixed(0)} → attuale $${curCap.toFixed(0)}`);
+  L.push(`P&L totale: ${s.pnlDollar >= 0 ? '+' : ''}$${s.pnlDollar.toFixed(0)} (ROI account ${s.roi >= 0 ? '+' : ''}${s.roi.toFixed(1)}%, ROI sul rischiato ${s.roiRisked >= 0 ? '+' : ''}${s.roiRisked.toFixed(1)}%)`);
+  L.push('');
+  L.push(`PERFORMANCE (${s.total} trade)`);
+  L.push(`- Win rate: ${(s.winRate * 100).toFixed(0)}%  (${s.nWin} win · ${s.nPartial} parziali · ${s.nBe} BE · ${s.nLoss} loss)`);
+  L.push(`- Expectancy: ${s.expectancy >= 0 ? '+' : ''}${s.expectancy.toFixed(2)}R per trade`);
+  L.push(`- Profit factor: ${pf}`);
+  L.push(`- R/R medio: pianificato ${s.avgRRPlanned.toFixed(2)} / reale ${s.avgRRActual >= 0 ? '+' : ''}${s.avgRRActual.toFixed(2)}`);
+  L.push(`- TP pieno: ${s.tpResp != null ? (s.tpResp * 100).toFixed(0) + '% dei profitti' : 'n/d'} · SL contenuto: ${s.slResp != null ? (s.slResp * 100).toFixed(0) + '% delle perdite' : 'n/d'}`);
+
+  const bySetup = breakdownBy(arr, 'setup');
+  const byTag = breakdownBy(arr, 'tag');
+  const byAsset = breakdownBy(arr, 'asset');
+  const byContext = breakdownBy(arr, 'context');
+  const byTimeframe = breakdownBy(arr, 'timeframe');
+
+  if (byContext.length) {
+    L.push(''); L.push('PER CONTESTO MERCATO');
+    byContext.forEach(b => L.push(`- ${b.key}: ${b.count} trade · WR ${(b.stats.winRate * 100).toFixed(0)}% · exp ${b.stats.expectancy >= 0 ? '+' : ''}${b.stats.expectancy.toFixed(2)}R`));
+  }
+  if (byTimeframe.length) {
+    L.push(''); L.push('PER TIMEFRAME');
+    byTimeframe.forEach(b => L.push(`- ${b.key}: ${b.count} trade · WR ${(b.stats.winRate * 100).toFixed(0)}% · exp ${b.stats.expectancy >= 0 ? '+' : ''}${b.stats.expectancy.toFixed(2)}R`));
+  }
+  if (bySetup.length) {
+    L.push(''); L.push('PER SETUP');
+    bySetup.forEach(b => L.push(`- ${b.key}: ${b.count} trade · WR ${(b.stats.winRate * 100).toFixed(0)}% · exp ${b.stats.expectancy >= 0 ? '+' : ''}${b.stats.expectancy.toFixed(2)}R`));
+  }
+  if (byTag.length) {
+    L.push(''); L.push('PER TAG');
+    byTag.forEach(b => L.push(`- ${b.key}: ${b.count} trade · WR ${(b.stats.winRate * 100).toFixed(0)}% · exp ${b.stats.expectancy >= 0 ? '+' : ''}${b.stats.expectancy.toFixed(2)}R`));
+  }
+  if (byAsset.length > 1) {
+    L.push(''); L.push('PER ASSET');
+    byAsset.forEach(b => L.push(`- ${b.key}: ${b.count} trade · exp ${b.stats.expectancy >= 0 ? '+' : ''}${b.stats.expectancy.toFixed(2)}R`));
+  }
+
+  L.push(''); L.push(`TRADE (${arr.length}, dal più recente)`);
+  L.push('formato: #n | data | direzione asset | setup | contesto | tf | R pianif→reale | esito | tag');
+  arr.forEach(t => {
+    const o = omap[t.outcome || deriveOutcome(t)] || '?';
+    const tags = (t.tags || []).join(',') || '—';
+    const rr = `${t.rr_planned}→${t.rr_actual >= 0 ? '+' : ''}${t.rr_actual}R`;
+    const note = t.note ? ` | nota: ${t.note}` : '';
+    L.push(`#${t.n} | ${t.ts} | ${t.direction.toUpperCase()} ${t.asset} | ${t.setup || '—'} | ${t.context || '—'} | ${t.timeframe || '—'} | ${rr} | ${o} | ${tags}${note}`);
+  });
+
+  return L.join('\n');
+}
+
+async function copyReport() {
+  const text = buildReport();
+  if (!text) return;
+  const n = filteredTrades().length;
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast(`✓ Report copiato (${n} trade) — incollalo in chat`, 'success');
+  } catch (e) {
+    // Fallback per browser/contesti senza Clipboard API
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e2) { ok = false; }
+    document.body.removeChild(ta);
+    showToast(ok ? `✓ Report copiato (${n} trade)` : 'Copia non riuscita', ok ? 'success' : 'error');
+  }
+}
+
+function renderBreakdown(items, dim) {
+  return items.map(item => {
+    const s = item.stats;
+    if (!s) return '';
+    const valCls = s.expectancy > 0 ? 'val-pos' : s.expectancy < 0 ? 'val-neg' : 'val-zero';
+    const sign = s.expectancy >= 0 ? '+' : '';
+    const tappable = dim ? ` breakdown-row-tap" data-group-dim="${dim}" data-group-val="${escapeHtml(item.key)}"` : '"';
+    const chevron = dim ? '<span class="breakdown-chevron">›</span>' : '';
+    return `
+      <div class="breakdown-row${tappable}>
+        <div>
+          <div class="breakdown-label">${escapeHtml(item.key)}</div>
+          <div class="breakdown-stats">${item.count} trade · WR ${(s.winRate*100).toFixed(0)}%</div>
+        </div>
+        <div class="breakdown-value ${valCls}">${sign}${s.expectancy.toFixed(2)}R${chevron}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderInsights(s, byAsset, bySetup, byTag) {
+  const notes = [];
+  const alerts = [];
+  const positives = [];
+  const fmtR = r => (r >= 0 ? '+' : '') + r.toFixed(2) + 'R';
+  const pct = x => (x * 100).toFixed(0) + '%';
+
+  // NOTA — dimensione campione
+  if (s.total < 30) {
+    notes.push(`Campione di ${s.total} trade: ancora piccolo per conclusioni affidabili (servono ~30-40 trade perché le medie si stabilizzino). Tratta quanto segue come indizi, non verdetti.`);
+  }
+
+  // ALERT — chiudere i vincenti in anticipo (SOLO sui trade profittevoli, non sulla media globale)
+  if (s.wins >= 4 && s.captureRatio < 0.8) {
+    alerts.push(`Sui ${s.wins} vincenti catturi in media ${fmtR(s.avgActualWin)} su ${fmtR(s.avgPlannedWin)} pianificati (${pct(s.captureRatio)} del target): chiudi i vincenti in anticipo, ~${s.rLeftOnTable.toFixed(2)}R lasciati sul tavolo a trade.`);
+  }
+
+  // ALERT — lasciar correre le perdite
+  if (s.nLoss >= 3 && s.slResp != null && s.slResp < 0.7) {
+    alerts.push(`SL contenuto solo nel ${pct(s.slResp)} delle ${s.nLoss} perdite: in ${s.nLoss - s.slCleanCount} casi hai superato lo stop pianificato. Stai lasciando correre.`);
+  }
+
+  // ALERT — expectancy negativa (guardia campione)
+  if (s.total >= 10 && s.expectancy < 0) {
+    alerts.push(`Expectancy negativa (${fmtR(s.expectancy)} per trade) su ${s.total} trade: il sistema così com'è perde sui grandi numeri.`);
+  }
+
+  // ALERT — striscia di perdite
+  if (s.maxLossStreak >= 4) {
+    alerts.push(`Striscia di ${s.maxLossStreak} perdite consecutive registrata: verifica che la size regga ${s.maxLossStreak}+ stop di fila senza intaccare troppo il capitale.`);
+  }
+
+  // ALERT — setup con edge negativo (>=3 trade)
+  bySetup.filter(b => b.stats && b.count >= 3 && b.stats.expectancy < 0)
+    .forEach(b => alerts.push(`Setup "${b.key}": ${fmtR(b.stats.expectancy)} su ${b.count} trade. Edge negativo, da rivedere o sospendere.`));
+
+  // ALERT — tag (comportamenti) con risultato negativo (>=2 occorrenze); '—' = senza tag, escluso
+  byTag.filter(b => b.key !== '—' && b.stats && b.count >= 2 && b.stats.expectancy < 0)
+    .sort((a, b) => a.stats.expectancy - b.stats.expectancy)
+    .slice(0, 3)
+    .forEach(b => alerts.push(`Tag "${b.key}": ${fmtR(b.stats.expectancy)} su ${b.count} trade. Quando compare questo comportamento, il risultato peggiora.`));
+
+  // NOTA — sbilanciamento direzionale
+  const dirTot = s.longCount + s.shortCount;
+  if (s.total >= 5 && dirTot > 0) {
+    const longShare = s.longCount / dirTot;
+    if (longShare >= 0.85) {
+      notes.push(`${s.longCount} long su ${dirTot} trade: il sistema è quasi solo testato al rialzo. Parte del win rate può dipendere dal mercato in salita, non dall'edge. Da verificare anche in fasi ribassiste.`);
+    } else if (longShare <= 0.15) {
+      notes.push(`${s.shortCount} short su ${dirTot} trade: sistema testato quasi solo al ribasso. Edge non verificato al rialzo.`);
+    }
+  }
+
+  // NOTA — profilo win rate vs R/R
+  if (s.total >= 10) {
+    if (s.winRate >= 0.65 && s.avgPlannedWin > 0 && s.avgPlannedWin < 1.2) {
+      notes.push(`Win rate alto (${pct(s.winRate)}) ma target piccoli (R/R medio sui vincenti ${s.avgPlannedWin.toFixed(2)}): poco margine, una serie di stop pieni può cancellare molti win.`);
+    }
+    if (s.winRate <= 0.4 && (s.profitFactor >= 1 || !isFinite(s.profitFactor))) {
+      notes.push(`Win rate basso (${pct(s.winRate)}) ma sistema in positivo: ti reggi sull'R/R alto. Richiede disciplina ferrea sugli stop e tenuta nelle strisce di perdite.`);
+    }
+  }
+
+  // POSITIVO — miglior setup
+  const bestSetup = bySetup.filter(b => b.stats && b.count >= 3).sort((a, b) => b.stats.expectancy - a.stats.expectancy)[0];
+  if (bestSetup && bestSetup.stats.expectancy > 0.3) {
+    positives.push(`Setup migliore: "${bestSetup.key}" con ${fmtR(bestSetup.stats.expectancy)} su ${bestSetup.count} trade (WR ${pct(bestSetup.stats.winRate)}). È dove hai più edge.`);
+  }
+
+  // POSITIVO — miglior tag
+  const bestTag = byTag.filter(b => b.key !== '—' && b.stats && b.count >= 2).sort((a, b) => b.stats.expectancy - a.stats.expectancy)[0];
+  if (bestTag && bestTag.stats.expectancy > 0.5) {
+    positives.push(`Tag "${bestTag.key}": ${fmtR(bestTag.stats.expectancy)} su ${bestTag.count} trade. Comportamento da replicare.`);
+  }
+
+  // POSITIVO — disciplina sulle uscite
+  if (s.total >= 5 && s.tpResp != null && s.tpResp >= 0.8 && s.slResp != null && s.slResp >= 0.9) {
+    positives.push(`Disciplina sulle uscite ottima: TP pieno ${pct(s.tpResp)}, SL contenuto ${pct(s.slResp)}. Prendi i target e non lasci correre le perdite.`);
+  }
+
+  // POSITIVO — sistema profittevole e maturo
+  if (s.total >= 20 && s.expectancy > 0.2 && (s.profitFactor >= 1.5 || !isFinite(s.profitFactor))) {
+    positives.push(`Sistema profittevole su un campione decente: expectancy ${fmtR(s.expectancy)}, profit factor ${isFinite(s.profitFactor) ? s.profitFactor.toFixed(2) : '∞'}. Continua a raccogliere dati mantenendo la disciplina.`);
+  }
+
+  if (notes.length === 0 && alerts.length === 0 && positives.length === 0) return '';
+  return `
+    <div class="panel">
+      <div class="panel-title">Insight</div>
+      ${alerts.map(a => `<div class="insight-item">${a}</div>`).join('')}
+      ${positives.map(p => `<div class="insight-item positive">✓ ${p}</div>`).join('')}
+      ${notes.map(n => `<div class="insight-item note">${n}</div>`).join('')}
+    </div>
+  `;
+}
+
+function renderFilters() {
+  const box = document.getElementById('stats-filters');
+  const f = state.filters;
+  const assets = ['all', ...state.config.assets];
+  const setups = ['all', ...state.config.setups];
+  const tags = ['all', ...state.config.tags, ...(state.config.error_tags || [])];
+  box.innerHTML = `
+    <select class="filter-select" id="filter-date">
+      <option value="all"${f.dateRange==='all'?' selected':''}>Tutte le date</option>
+      <option value="30"${f.dateRange==='30'?' selected':''}>Ultimi 30g</option>
+      <option value="90"${f.dateRange==='90'?' selected':''}>Ultimi 90g</option>
+    </select>
+    <select class="filter-select" id="filter-direction">
+      <option value="all"${f.direction==='all'?' selected':''}>Long + Short</option>
+      <option value="long"${f.direction==='long'?' selected':''}>Solo Long</option>
+      <option value="short"${f.direction==='short'?' selected':''}>Solo Short</option>
+    </select>
+    <select class="filter-select" id="filter-asset">
+      ${assets.map(a => `<option value="${escapeHtml(a)}"${f.asset===a?' selected':''}>${a==='all'?'Tutti gli asset':escapeHtml(a)}</option>`).join('')}
+    </select>
+    <select class="filter-select" id="filter-setup">
+      ${setups.map(s => `<option value="${escapeHtml(s)}"${f.setup===s?' selected':''}>${s==='all'?'Tutti i setup':escapeHtml(s)}</option>`).join('')}
+    </select>
+    <select class="filter-select" id="filter-tag">
+      ${tags.map(t => `<option value="${escapeHtml(t)}"${f.tag===t?' selected':''}>${t==='all'?'Tutti i tag':escapeHtml(t)}</option>`).join('')}
+    </select>
+  `;
+  document.getElementById('filter-date').onchange = e => { state.filters.dateRange = e.target.value; renderStats(); };
+  document.getElementById('filter-direction').onchange = e => { state.filters.direction = e.target.value; renderStats(); };
+  document.getElementById('filter-asset').onchange = e => { state.filters.asset = e.target.value; renderStats(); };
+  document.getElementById('filter-setup').onchange = e => { state.filters.setup = e.target.value; renderStats(); };
+  document.getElementById('filter-tag').onchange = e => { state.filters.tag = e.target.value; renderStats(); };
+}
+
+// ============================================================
+//  SETTINGS
+// ============================================================
+function renderSettings() {
+  // Accounts
+  const accBox = document.getElementById('accounts-editor');
+  accBox.innerHTML = '';
+  state.config.accounts.forEach((a, i) => {
+    const currentCap = currentCapital(a.id);
+    const delta = currentCap - a.capital;
+    const deltaSign = delta >= 0 ? '+' : '';
+    const deltaCls = delta > 0 ? 'val-pos' : delta < 0 ? 'val-neg' : 'val-zero';
+    const card = document.createElement('div');
+    card.className = 'account-card';
+    card.innerHTML = `
+      <div class="account-card-header">
+        <div class="account-card-name">Account ${i+1}</div>
+        <div style="font-size: 11px; color: var(--text-dim); font-family: var(--font-mono);">
+          Corrente: <span class="${deltaCls}">$${currentCap.toFixed(0)}</span>
+          <span style="color: var(--text-muted); font-size: 9px; margin-left: 4px;">(${deltaSign}$${delta.toFixed(0)})</span>
+        </div>
+      </div>
+      <div class="field">
+        <span class="field-label">Nome</span>
+        <input class="input" type="text" value="${escapeHtml(a.name)}" data-acc-name="${a.id}">
+      </div>
+      <div class="field-row">
+        <div class="field-col">
+          <span class="field-label">Capitale iniziale $</span>
+          <input class="input" type="number" value="${a.capital}" min="0" step="100" inputmode="decimal" data-acc-cap="${a.id}">
+        </div>
+        <div class="field-col">
+          <span class="field-label">Rischio % standard</span>
+          <input class="input" type="number" value="${a.risk_pct}" min="0" step="0.1" inputmode="decimal" data-acc-risk="${a.id}">
+        </div>
+      </div>
+    `;
+    accBox.appendChild(card);
+  });
+  // Listener accounts
+  accBox.querySelectorAll('[data-acc-name]').forEach(inp => {
+    inp.onchange = async (e) => {
+      const id = inp.dataset.accName;
+      const acc = state.config.accounts.find(a => a.id === id);
+      if (acc) { acc.name = e.target.value.trim() || acc.name; await saveConfig(); render(); }
+    };
+  });
+  accBox.querySelectorAll('[data-acc-cap]').forEach(inp => {
+    inp.onchange = async (e) => {
+      const id = inp.dataset.accCap;
+      const acc = state.config.accounts.find(a => a.id === id);
+      if (acc) { acc.capital = parseFloat(e.target.value) || 0; await saveConfig(); render(); }
+    };
+  });
+  accBox.querySelectorAll('[data-acc-risk]').forEach(inp => {
+    inp.onchange = async (e) => {
+      const id = inp.dataset.accRisk;
+      const acc = state.config.accounts.find(a => a.id === id);
+      if (acc) { acc.risk_pct = parseFloat(e.target.value) || 1.0; await saveConfig(); render(); }
+    };
+  });
+
+  // Lists
+  renderListEditor('assets-editor', state.config.assets, 'assets', 'es. BTC/USDT');
+  renderListEditor('setups-editor', state.config.setups, 'setups', 'es. Doppio minimo');
+  renderListEditor('tags-editor', state.config.tags, 'tags', 'es. SL a BE');
+  renderListEditor('error-tags-editor', state.config.error_tags || [], 'error_tags', 'es. FOMO');
+  renderListEditor('contexts-editor', state.config.contexts || [], 'contexts', 'es. Distribuzione');
+  renderListEditor('timeframes-editor', state.config.timeframes || [], 'timeframes', 'es. 30m');
+
+  // Theme grid
+  renderThemeGrid();
+}
+
+function renderListEditor(elId, arr, key, placeholder) {
+  const box = document.getElementById(elId);
+  box.innerHTML = '';
+  arr.forEach((item, i) => {
+    const row = document.createElement('div');
+    row.className = 'list-item';
+    row.innerHTML = `
+      <span class="list-item-name">${escapeHtml(item)}</span>
+      <button class="btn-secondary" style="flex:none; width:34px; padding:4px 0; font-size:12px; text-align:center;" data-edit="${i}">✎</button>
+      <button class="btn-secondary" style="flex:none; width:34px; padding:4px 0; font-size:12px; text-align:center;" data-remove="${i}">×</button>
+    `;
+    box.appendChild(row);
+  });
+  const addRow = document.createElement('div');
+  addRow.className = 'list-add-row';
+  addRow.innerHTML = `
+    <input class="list-add-input" type="text" placeholder="${placeholder}" data-add-input>
+    <button class="list-add-btn" data-add-btn>+</button>
+  `;
+  box.appendChild(addRow);
+
+  box.querySelectorAll('[data-remove]').forEach(b => {
+    b.onclick = async () => {
+      const i = parseInt(b.dataset.remove);
+      state.config[key].splice(i, 1);
+      await saveConfig();
+      renderSettings();
+    };
+  });
+
+  // Rinomina inline: trasforma la riga in un campo editabile
+  box.querySelectorAll('[data-edit]').forEach(b => {
+    b.onclick = () => {
+      const i = parseInt(b.dataset.edit);
+      const row = b.closest('.list-item');
+      const current = state.config[key][i];
+      row.innerHTML = `
+        <input class="list-add-input" type="text" data-rename-input style="flex:1; min-width:0;">
+        <button class="btn-secondary" style="flex:none; width:34px; padding:4px 0; font-size:12px; text-align:center;" data-rename-ok>✓</button>
+        <button class="btn-secondary" style="flex:none; width:34px; padding:4px 0; font-size:12px; text-align:center;" data-rename-cancel>×</button>
+      `;
+      const inp = row.querySelector('[data-rename-input]');
+      inp.value = current;
+      inp.focus();
+      inp.setSelectionRange(inp.value.length, inp.value.length);
+      const confirm = () => renameConfigItem(key, i, inp.value);
+      row.querySelector('[data-rename-ok]').onclick = confirm;
+      row.querySelector('[data-rename-cancel]').onclick = () => renderSettings();
+      inp.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); confirm(); }
+        if (e.key === 'Escape') { e.preventDefault(); renderSettings(); }
+      });
+    };
+  });
+
+  const input = box.querySelector('[data-add-input]');
+  const addBtn = box.querySelector('[data-add-btn]');
+  const doAdd = async () => {
+    const v = input.value.trim();
+    if (!v) return;
+    if (state.config[key].includes(v)) {
+      showToast('Già presente', 'error');
+      return;
+    }
+    state.config[key].push(v);
+    await saveConfig();
+    renderSettings();
+  };
+  addBtn.onclick = doAdd;
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); doAdd(); } });
+}
+
+// Rinomina un setup o tag e propaga la modifica a TUTTI i trade (di ogni account)
+async function renameConfigItem(key, index, rawName) {
+  const newName = (rawName || '').trim();
+  const oldName = state.config[key][index];
+  if (!newName || newName === oldName) { renderSettings(); return; }
+  if (state.config[key].includes(newName)) {
+    showToast('Nome già presente', 'error');
+    return;
+  }
+  state.config[key][index] = newName;
+
+  // Aggiorna i trade salvati che usano il vecchio nome
+  let changed = 0;
+  for (const t of state.trades) {
+    if (key === 'setups') {
+      if (t.setup === oldName) { t.setup = newName; await dbPut(TRADES_STORE, t); changed++; }
+    } else if (key === 'contexts') {
+      if (t.context === oldName) { t.context = newName; await dbPut(TRADES_STORE, t); changed++; }
+    } else if (key === 'timeframes') {
+      if (t.timeframe === oldName) { t.timeframe = newName; await dbPut(TRADES_STORE, t); changed++; }
+    } else { // tags
+      if (Array.isArray(t.tags) && t.tags.includes(oldName)) {
+        t.tags = [...new Set(t.tags.map(x => x === oldName ? newName : x))];
+        await dbPut(TRADES_STORE, t);
+        changed++;
+      }
+    }
+  }
+  await saveConfig();
+  showToast(`✓ Rinominato — ${changed} trade aggiornati`, 'success');
+  renderSettings();
+}
+
+function renderThemeGrid() {
+  const box = document.getElementById('theme-grid');
+  box.innerHTML = '';
+  Object.entries(themes).forEach(([key, theme]) => {
+    const btn = document.createElement('button');
+    btn.className = 'theme-option' + (state.config.theme === key ? ' active' : '');
+    btn.innerHTML = `
+      <div class="theme-option-name">${theme.name}</div>
+      <div class="theme-option-desc">${theme.desc}</div>
+      <div class="theme-swatch">
+        <span style="background:${theme.bg}"></span>
+        <span style="background:${theme.surface}"></span>
+        <span style="background:${theme.accent}"></span>
+        <span style="background:${theme.win}"></span>
+        <span style="background:${theme.loss === 'transparent' ? theme.text : theme.loss}"></span>
+      </div>
+    `;
+    btn.onclick = async () => {
+      state.config.theme = key;
+      applyTheme(key);
+      await saveConfig();
+      renderSettings();
+    };
+    box.appendChild(btn);
+  });
+}
+
+// ============================================================
+//  SVG CHARTS
+// ============================================================
+function drawEquityChart(points) {
+  const container = document.getElementById('equity-chart');
+  if (!container || points.length === 0) return;
+  const W = container.clientWidth || 320;
+  const H = 160;
+  const padL = 44, padR = 10, padT = 10, padB = 22;
+  const innerW = W - padL - padR, innerH = H - padT - padB;
+  const vals = points.map(p => p.eq);
+  const maxV = Math.max(...vals);
+  const minV = Math.min(...vals);
+  const range = maxV - minV || 1;
+  const xS = i => padL + (i / Math.max(1, points.length - 1)) * innerW;
+  const yS = v => padT + innerH - ((v - minV) / range) * innerH;
+  const acc = currentAccount();
+
+  const stroke = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#0A0A0A';
+  const dim = getComputedStyle(document.documentElement).getPropertyValue('--border-subtle').trim();
+  const txt = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim();
+  const monoFont = (getComputedStyle(document.documentElement).getPropertyValue('--font-mono') || "'JetBrains Mono', monospace").trim();
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px;display:block">`;
+  // Reference line capitale iniziale
+  const baseY = yS(acc.capital);
+  if (acc.capital >= minV && acc.capital <= maxV) {
+    svg += `<line x1="${padL}" y1="${baseY}" x2="${W-padR}" y2="${baseY}" stroke="${dim}" stroke-width="1" stroke-dasharray="3 3"/>`;
+  }
+  // Path
+  const path = points.map((p, i) => `${i===0?'M':'L'} ${xS(i)} ${yS(p.eq)}`).join(' ');
+  svg += `<path d="${path}" stroke="${stroke}" stroke-width="2" fill="none"/>`;
+  // Y labels
+  svg += `<text x="4" y="${yS(maxV)+4}" fill="${txt}" font-size="9" font-family="${monoFont}">$${maxV.toFixed(0)}</text>`;
+  svg += `<text x="4" y="${yS(minV)+4}" fill="${txt}" font-size="9" font-family="${monoFont}">$${minV.toFixed(0)}</text>`;
+  svg += `</svg>`;
+  container.innerHTML = svg;
+}
+
+function drawBarChart(trades) {
+  const container = document.getElementById('bar-chart');
+  if (!container || trades.length === 0) return;
+  const W = container.clientWidth || 320;
+  const H = 160;
+  const padL = 32, padR = 10, padT = 10, padB = 24;
+  const innerW = W - padL - padR, innerH = H - padT - padB;
+  const allVals = trades.flatMap(t => [t.rr_planned, t.rr_actual]);
+  const maxV = Math.max(...allVals, 1);
+  const minV = Math.min(...allVals, 0);
+  const range = maxV - minV || 1;
+  const xStep = innerW / trades.length;
+  const barW = Math.max(2, xStep * 0.35);
+  const yS = v => padT + innerH - ((v - minV) / range) * innerH;
+  const zeroY = yS(0);
+
+  const txt = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim();
+  const winC = getComputedStyle(document.documentElement).getPropertyValue('--win').trim();
+  const lossC = getComputedStyle(document.documentElement).getPropertyValue('--loss').trim();
+  const accC = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+  const monoFont = (getComputedStyle(document.documentElement).getPropertyValue('--font-mono') || "'JetBrains Mono', monospace").trim();
+  const isMono = document.body.getAttribute('data-mono') === 'true';
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px;display:block">`;
+  svg += `<line x1="${padL}" y1="${zeroY}" x2="${W-padR}" y2="${zeroY}" stroke="${txt}" stroke-width="1"/>`;
+  // Y labels
+  svg += `<text x="4" y="${yS(maxV)+4}" fill="${txt}" font-size="9" font-family="${monoFont}">${maxV.toFixed(1)}</text>`;
+  svg += `<text x="4" y="${zeroY+4}" fill="${txt}" font-size="9" font-family="${monoFont}">0</text>`;
+  if (minV < 0) svg += `<text x="4" y="${yS(minV)+4}" fill="${txt}" font-size="9" font-family="${monoFont}">${minV.toFixed(1)}</text>`;
+
+  trades.forEach((t, i) => {
+    const cx = padL + xStep * i + xStep / 2;
+    // Pianificato (semi-trasparente)
+    const py1 = yS(t.rr_planned), ph = Math.abs(zeroY - py1), py = Math.min(zeroY, py1);
+    svg += `<rect x="${cx - barW - 1}" y="${py}" width="${barW}" height="${ph}" fill="${accC}" fill-opacity="0.25"/>`;
+    // Reale
+    const ay1 = yS(t.rr_actual), ah = Math.abs(zeroY - ay1), ay = Math.min(zeroY, ay1);
+    if (isMono) {
+      // Filled per positivi, outlined (vuoto con bordo) per negativi
+      if (t.rr_actual >= 0) {
+        svg += `<rect x="${cx + 1}" y="${ay}" width="${barW}" height="${ah}" fill="${winC}"/>`;
+      } else {
+        svg += `<rect x="${cx + 1}" y="${ay}" width="${barW}" height="${ah}" fill="none" stroke="${winC}" stroke-width="1.5"/>`;
+      }
+    } else {
+      svg += `<rect x="${cx + 1}" y="${ay}" width="${barW}" height="${ah}" fill="${t.rr_actual >= 0 ? winC : lossC}"/>`;
+    }
+  });
+  svg += `</svg>`;
+  container.innerHTML = svg;
+}
+
+// ============================================================
+//  EVENTS
+// ============================================================
+function bindEvents() {
+  // View tabs (Log/Stats): navigano via cronologia così il tasto indietro li ripercorre
+  document.querySelectorAll('.view-tab').forEach(b => {
+    b.onclick = () => {
+      if (state.view === b.dataset.view && !state.editingId) return; // già qui: niente push inutile
+      navOpen(b.dataset.view);
+    };
+  });
+
+  // Settings button (sotto-vista → push nella history)
+  document.getElementById('settings-btn').onclick = () => {
+    if (state.view === 'settings') navBack();
+    else navOpen('settings');
+  };
+  document.getElementById('footer-back').onclick = () => navBack();
+  document.getElementById('detail-back-btn').onclick = () => navBack();
+  document.getElementById('group-back-btn').onclick = () => navBack();
+
+  // Form: direction
+  document.getElementById('dir-long').onclick = () => { state.form.direction = 'long'; render(); };
+  document.getElementById('dir-short').onclick = () => { state.form.direction = 'short'; render(); };
+
+  // Asset
+  document.getElementById('asset').onchange = e => { state.form.asset = e.target.value; };
+
+  // RR planned, RR actual, Risk
+  document.getElementById('rr-planned').oninput = e => { state.form.rr_planned = e.target.value; syncRiskFields(); };
+  document.getElementById('rr-actual').oninput = e => { state.form.rr_actual = e.target.value; syncRiskFields(); };
+  document.getElementById('risk-pct').oninput = e => { state.form.risk_pct = e.target.value; state.form.last_edited = 'pct'; syncRiskFields(); };
+  // Risultato $ — guida il rischio % (e viceversa), aggiornamento reciproco in tempo reale
+  document.getElementById('result-dollar').oninput = e => { state.form.result_dollar = e.target.value; state.form.last_edited = 'dollar'; syncRiskFields(); };
+
+  // Outcome
+  document.getElementById('out-win').onclick = () => {
+    state.form.outcome = 'win';
+    state.form.rr_actual = '';
+    document.getElementById('rr-actual').value = '';
+    render();
+  };
+  document.getElementById('out-be').onclick = () => {
+    state.form.outcome = 'be';
+    state.form.rr_actual = '';
+    document.getElementById('rr-actual').value = '';
+    render();
+  };
+  document.getElementById('out-partial').onclick = () => {
+    state.form.outcome = 'partial';
+    render();
+    setTimeout(() => document.getElementById('rr-actual').focus(), 50);
+  };
+  document.getElementById('out-loss').onclick = () => {
+    state.form.outcome = 'loss';
+    render();
+    setTimeout(() => document.getElementById('rr-actual').focus(), 50);
+  };
+
+  // Note
+  document.getElementById('note-toggle').onclick = () => {
+    const ta = document.getElementById('note');
+    const wasHidden = ta.classList.contains('hidden');
+    ta.classList.toggle('hidden');
+    document.getElementById('note-toggle').textContent = wasHidden ? '− nascondi nota' : '+ aggiungi nota libera';
+    if (wasHidden) ta.focus();
+  };
+  document.getElementById('note').oninput = e => { state.form.note = e.target.value; };
+
+  // Risk amount ($)
+  document.getElementById('risk-amt-toggle').onclick = () => {
+    const inp = document.getElementById('risk-amt');
+    const hint = document.getElementById('risk-amt-hint');
+    const wasHidden = inp.classList.contains('hidden');
+    inp.classList.toggle('hidden');
+    hint.classList.toggle('hidden');
+    document.getElementById('risk-amt-toggle').textContent = wasHidden ? '− nascondi capitale custom' : '+ usa un capitale diverso per questo trade';
+    if (wasHidden) inp.focus();
+  };
+  document.getElementById('risk-amt').oninput = e => { state.form.capital_used = e.target.value; };
+
+  // Detail back (gestito via history, come il tasto indietro del telefono)
+  document.getElementById('detail-back-btn').onclick = () => navBack();
+
+  // Edit cancel
+  document.getElementById('edit-cancel').onclick = () => navBack();
+
+  // Add trade
+  document.getElementById('add-btn').onclick = addTrade;
+
+  // Export / Import / Reset
+  document.getElementById('export-btn').onclick = exportData;
+  // Promemoria backup
+  document.getElementById('backup-banner-export').onclick = exportData;
+  document.getElementById('backup-banner-dismiss').onclick = () => {
+    state.backupBannerDismissed = true;
+    renderBackupBanner();
+  };
+  document.getElementById('import-btn').onclick = () => document.getElementById('import-file').click();
+  document.getElementById('import-file').onchange = e => {
+    if (e.target.files && e.target.files[0]) {
+      importData(e.target.files[0]);
+      e.target.value = '';
+    }
+  };
+  document.getElementById('reset-btn').onclick = resetAll;
+
+  // Resize → redraw charts
+  window.addEventListener('resize', () => {
+    if (state.view === 'stats') renderStats();
+  });
+}
+
+// ============================================================
+//  UTIL
+// ============================================================
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+}
+
+// ============================================================
+//  SERVICE WORKER
+// ============================================================
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(err => console.warn('SW reg failed:', err));
+  });
+}
+
+// Boot
+init();
+</script>
+</body>
+</html>
