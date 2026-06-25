@@ -1114,9 +1114,11 @@ const state = {
   config: { ...DEFAULT_CONFIG },
   view: 'log',
   form: makeEmptyForm(),
-  filters: { dateRange: 'all', asset: 'all', setup: 'all', tag: 'all' },
+  filters: { dateRange: 'all', asset: 'all', setup: 'all', tag: 'all', direction: 'all' },
   editingId: null,
   detailId: null,
+  navStack: [],
+  logLimit: 15,
   loading: true,
 };
 
@@ -1289,7 +1291,27 @@ function syncRiskFields() {
   const f = state.form;
   const R = Math.abs(currentFormR());
   const acc = currentAccount();
-  const cap = currentCapital(acc.id);
+  // In MODIFICA di un trade esistente: usa il capitale RICOSTRUITO alla data del trade
+  // (la stessa fonte del dettaglio), non il capitale corrente — altrimenti il $ esce gonfiato.
+  let cap;
+  if (state.editingId) {
+    const et = state.trades.find(x => x.id === state.editingId);
+    if (et) {
+      const eacc = state.config.accounts.find(a => a.id === et.account_id) || acc;
+      if (et.capital_used != null) {
+        cap = et.capital_used;
+      } else {
+        const sorted = state.trades
+          .filter(x => x.account_id === et.account_id)
+          .sort((a, b) => a.iso.localeCompare(b.iso));
+        cap = capitalAtTrade(et, sorted, eacc);
+      }
+    } else {
+      cap = currentCapital(acc.id);
+    }
+  } else {
+    cap = currentCapital(acc.id);
+  }
   const pctEl = document.getElementById('risk-pct');
   const dolEl = document.getElementById('result-dollar');
 
@@ -1511,17 +1533,33 @@ async function init() {
 // Entrare in una sotto-vista cambia solo lo stato; il tasto indietro risale di un
 // livello dentro l'app e ri-arma la trappola, così l'app non si chiude finché non sei al root.
 function navOpen(view, extra) {
+  // Salva lo stato di navigazione CORRENTE nello stack (cronologia, come il browser),
+  // così il tasto indietro ripercorre i passi nell'ordine in cui sono stati fatti.
+  state.navStack.push({
+    view: state.view,
+    detailId: state.detailId,
+    detailFrom: state.detailFrom,
+    groupDim: state.groupDim,
+    groupVal: state.groupVal,
+  });
   if (extra) Object.assign(state, extra);
   state.view = view;
   render();
 }
-// Risale di un livello. Ritorna true se ha navigato (eravamo in una sotto-vista), false se al root.
+// Risale di un passo nella cronologia. Ritorna true se ha navigato, false se non c'è storia (root).
 function goUp() {
   if (state.editingId) { cancelEdit(); return true; }
-  if (state.view === 'detail') { state.view = state.detailFrom || 'log'; render(); return true; }
-  if (state.view === 'group') { state.view = 'stats'; render(); return true; }
-  if (state.view === 'settings') { state.view = 'log'; render(); return true; }
-  return false; // root (log/stats)
+  if (state.navStack.length > 0) {
+    const prev = state.navStack.pop();
+    state.view = prev.view;
+    state.detailId = prev.detailId;
+    state.detailFrom = prev.detailFrom;
+    state.groupDim = prev.groupDim;
+    state.groupVal = prev.groupVal;
+    render();
+    return true;
+  }
+  return false; // nessuna storia: un ulteriore "indietro" chiude l'app
 }
 function navBack() { goUp(); } // usato dai pulsanti "indietro" dentro l'app
 function setupBackHandler() {
@@ -1898,6 +1936,7 @@ function filteredTrades() {
   let arr = tradesForCurrentAccount();
   const f = state.filters;
   if (f.asset !== 'all') arr = arr.filter(t => t.asset === f.asset);
+  if (f.direction !== 'all') arr = arr.filter(t => t.direction === f.direction);
   if (f.setup !== 'all') arr = arr.filter(t => t.setup === f.setup);
   if (f.tag !== 'all') arr = arr.filter(t => (t.tags || []).includes(f.tag));
   if (f.dateRange !== 'all') {
@@ -2268,14 +2307,24 @@ function renderLog() {
   renderTagGroup('tag-chips', state.config.tags);
   renderTagGroup('tag-chips-error', state.config.error_tags);
 
-  // Trade list
+  // Trade list — mostra solo gli ultimi N, con "mostra altri" per non scrollare all'infinito
   const list = document.getElementById('trades-list');
   const arr = tradesForCurrentAccount();
   if (arr.length === 0) {
     list.innerHTML = '<div class="empty">' + (state.loading ? '…' : 'nessun trade ancora') + '</div>';
     return;
   }
-  buildTradeRows(list, [...arr].reverse(), 'log');
+  const ordered = [...arr].reverse(); // più recente in cima
+  const limit = state.logLimit || 15;
+  buildTradeRows(list, ordered.slice(0, limit), 'log');
+  if (ordered.length > limit) {
+    const more = document.createElement('button');
+    more.className = 'btn-secondary';
+    more.style.cssText = 'width:100%;margin-top:12px;';
+    more.textContent = `Mostra altri (${ordered.length - limit} rimanenti)`;
+    more.onclick = () => { state.logLimit = limit + 15; render(); };
+    list.appendChild(more);
+  }
 }
 
 // Costruisce le righe trade (riusato da log e da vista gruppo).
@@ -2859,6 +2908,11 @@ function renderFilters() {
       <option value="30"${f.dateRange==='30'?' selected':''}>Ultimi 30g</option>
       <option value="90"${f.dateRange==='90'?' selected':''}>Ultimi 90g</option>
     </select>
+    <select class="filter-select" id="filter-direction">
+      <option value="all"${f.direction==='all'?' selected':''}>Long + Short</option>
+      <option value="long"${f.direction==='long'?' selected':''}>Solo Long</option>
+      <option value="short"${f.direction==='short'?' selected':''}>Solo Short</option>
+    </select>
     <select class="filter-select" id="filter-asset">
       ${assets.map(a => `<option value="${escapeHtml(a)}"${f.asset===a?' selected':''}>${a==='all'?'Tutti gli asset':escapeHtml(a)}</option>`).join('')}
     </select>
@@ -2870,6 +2924,7 @@ function renderFilters() {
     </select>
   `;
   document.getElementById('filter-date').onchange = e => { state.filters.dateRange = e.target.value; renderStats(); };
+  document.getElementById('filter-direction').onchange = e => { state.filters.direction = e.target.value; renderStats(); };
   document.getElementById('filter-asset').onchange = e => { state.filters.asset = e.target.value; renderStats(); };
   document.getElementById('filter-setup').onchange = e => { state.filters.setup = e.target.value; renderStats(); };
   document.getElementById('filter-tag').onchange = e => { state.filters.tag = e.target.value; renderStats(); };
@@ -3176,9 +3231,12 @@ function drawBarChart(trades) {
 //  EVENTS
 // ============================================================
 function bindEvents() {
-  // View tabs (livello root: nessun push nella history)
+  // View tabs (Log/Stats): navigano via cronologia così il tasto indietro li ripercorre
   document.querySelectorAll('.view-tab').forEach(b => {
-    b.onclick = () => { state.view = b.dataset.view; render(); };
+    b.onclick = () => {
+      if (state.view === b.dataset.view && !state.editingId) return; // già qui: niente push inutile
+      navOpen(b.dataset.view);
+    };
   });
 
   // Settings button (sotto-vista → push nella history)
