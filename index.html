@@ -726,7 +726,8 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
 
 <!-- VIEW TABS -->
 <div class="view-tabs" id="view-tabs">
-  <button class="view-tab active" data-view="log">Log</button>
+  <button class="view-tab active" data-view="log">Nuovo</button>
+  <button class="view-tab" data-view="history">Storico</button>
   <button class="view-tab" data-view="stats">Stats</button>
 </div>
 
@@ -834,9 +835,11 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
       <div id="toast"></div>
     </div>
   </div>
+</div>
 
-  <!-- LISTA TRADE -->
-  <div class="panel-title" style="margin-top: 18px; margin-bottom: 8px; padding: 0 4px;">Ultimi trade</div>
+<!-- ================ HISTORY VIEW (Storico) ================ -->
+<div id="history-view" class="hidden">
+  <div class="panel-title" style="margin-top: 4px; margin-bottom: 8px; padding: 0 4px;">Storico trade</div>
   <div id="trades-list"></div>
 </div>
 
@@ -914,6 +917,16 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
   </div>
 
   <div class="settings-section">
+    <div class="settings-heading">Gestione trade</div>
+    <div class="panel subtle">
+      <p style="font-size: 12px; color: var(--text-dim); line-height: 1.6; margin-bottom: 12px;">
+        Correggi le etichette di tanti trade insieme (es. rinominare un vecchio setup) oppure filtra i trade da sistemare e aprili al volo.
+      </p>
+      <button class="btn-secondary" id="open-bulk-btn">✎ Modifica in blocco</button>
+    </div>
+  </div>
+
+  <div class="settings-section">
     <div class="settings-heading">Backup &amp; Reset</div>
     <div class="panel subtle">
       <p style="font-size: 12px; color: var(--text-dim); line-height: 1.6; margin-bottom: 12px;">
@@ -928,6 +941,45 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
     </div>
   </div>
 
+</div>
+
+<!-- ================ BULK VIEW (modifica in blocco) ================ -->
+<div id="bulk-view" class="hidden detail-view-wrap">
+  <div class="detail-back" id="bulk-back-btn">← Impostazioni</div>
+  <div class="panel-title" style="margin-bottom: 4px;">Modifica in blocco</div>
+  <p style="font-size: 12px; color: var(--text-dim); line-height: 1.6; margin: 0 4px 16px;">
+    Le modifiche valgono su <b>tutti i conti</b>. Niente viene cambiato finché non premi <b>Applica</b>.
+  </p>
+
+  <!-- b1: TROVA E SOSTITUISCI -->
+  <div class="panel">
+    <div class="panel-title">Trova e sostituisci</div>
+    <div class="field">
+      <span class="field-label">Campo</span>
+      <select class="filter-select" id="bulk-field" style="width:100%;"></select>
+    </div>
+    <div class="field">
+      <span class="field-label">Valore da cercare</span>
+      <select class="filter-select" id="bulk-old" style="width:100%;"></select>
+    </div>
+    <div class="field">
+      <span class="field-label">Sostituisci con</span>
+      <select class="filter-select" id="bulk-new" style="width:100%;"></select>
+    </div>
+    <div id="bulk-preview" style="font-size:13px; color:var(--text-dim); margin:8px 4px;"></div>
+    <button class="btn-primary" id="bulk-apply-btn">Applica</button>
+  </div>
+
+  <!-- b2: LISTA FILTRATA -->
+  <div class="panel">
+    <div class="panel-title">Filtra e correggi a mano</div>
+    <div class="field">
+      <span class="field-label">Mostra i trade con</span>
+      <select class="filter-select" id="bulk-filter-field" style="width:100%; margin-bottom:8px;"></select>
+      <select class="filter-select" id="bulk-filter-val" style="width:100%;"></select>
+    </div>
+    <div id="bulk-filtered-list" style="margin-top:8px;"></div>
+  </div>
 </div>
 
 <!-- FOOTER ACTIONS -->
@@ -1119,6 +1171,7 @@ const state = {
   detailId: null,
   navStack: [],
   logLimit: 15,
+  bulk: { field: 'setup', oldVal: '', newVal: '', filterField: 'setup', filterVal: '' },
   loading: true,
 };
 
@@ -2099,17 +2152,19 @@ function render() {
 
   // View tabs
   document.querySelectorAll('.view-tab').forEach(b => {
-    b.classList.toggle('active', b.dataset.view === state.view && (state.view === 'log' || state.view === 'stats'));
+    b.classList.toggle('active', b.dataset.view === state.view && (state.view === 'log' || state.view === 'history' || state.view === 'stats'));
   });
   document.getElementById('settings-btn').classList.toggle('active', state.view === 'settings');
 
   // Views visibility
   document.getElementById('log-view').classList.toggle('hidden', state.view !== 'log');
+  document.getElementById('history-view').classList.toggle('hidden', state.view !== 'history');
   document.getElementById('stats-view').classList.toggle('hidden', state.view !== 'stats');
   document.getElementById('detail-view').classList.toggle('hidden', state.view !== 'detail');
   document.getElementById('settings-view').classList.toggle('hidden', state.view !== 'settings');
   document.getElementById('group-view').classList.toggle('hidden', state.view !== 'group');
-  const isSub = state.view === 'settings' || state.view === 'detail' || state.view === 'group';
+  document.getElementById('bulk-view').classList.toggle('hidden', state.view !== 'bulk');
+  const isSub = state.view === 'settings' || state.view === 'detail' || state.view === 'group' || state.view === 'bulk';
   document.getElementById('view-tabs').classList.toggle('hidden', isSub);
   document.getElementById('account-tabs').classList.toggle('hidden', isSub);
   const showFooter = state.view === 'settings';
@@ -2150,10 +2205,12 @@ function render() {
   renderBackupBanner();
 
   if (state.view === 'log') renderLog();
+  else if (state.view === 'history') renderHistory();
   else if (state.view === 'stats') renderStats();
   else if (state.view === 'detail') renderDetail();
   else if (state.view === 'settings') renderSettings();
   else if (state.view === 'group') renderGroup();
+  else if (state.view === 'bulk') renderBulk();
 }
 
 // Promemoria backup: appare nella log view se non esporti da >30 giorni.
@@ -2306,8 +2363,10 @@ function renderLog() {
   };
   renderTagGroup('tag-chips', state.config.tags);
   renderTagGroup('tag-chips-error', state.config.error_tags);
+}
 
-  // Trade list — mostra solo gli ultimi N, con "mostra altri" per non scrollare all'infinito
+// Storico: lista dei trade del conto corrente, a blocchi (ultimi N + "mostra altri")
+function renderHistory() {
   const list = document.getElementById('trades-list');
   const arr = tradesForCurrentAccount();
   if (arr.length === 0) {
@@ -2316,7 +2375,7 @@ function renderLog() {
   }
   const ordered = [...arr].reverse(); // più recente in cima
   const limit = state.logLimit || 15;
-  buildTradeRows(list, ordered.slice(0, limit), 'log');
+  buildTradeRows(list, ordered.slice(0, limit), 'history');
   if (ordered.length > limit) {
     const more = document.createElement('button');
     more.className = 'btn-secondary';
@@ -2325,6 +2384,133 @@ function renderLog() {
     more.onclick = () => { state.logLimit = limit + 15; render(); };
     list.appendChild(more);
   }
+}
+
+// ===== MODIFICA IN BLOCCO =====
+// Campi modificabili in blocco. valid() = valori ammessi per il "nuovo" valore.
+const BULK_FIELDS = [
+  { key: 'setup',     label: 'Setup',     multi: false, valid: () => state.config.setups || [] },
+  { key: 'tag',       label: 'Tag',       multi: true,  valid: () => [...(state.config.tags||[]), ...(state.config.error_tags||[])] },
+  { key: 'context',   label: 'Contesto',  multi: false, valid: () => state.config.contexts || [] },
+  { key: 'direction', label: 'Direzione', multi: false, valid: () => ['long','short'] },
+  { key: 'timeframe', label: 'Timeframe', multi: false, valid: () => state.config.timeframes || [] },
+];
+function bulkFieldDef(key) { return BULK_FIELDS.find(f => f.key === key) || BULK_FIELDS[0]; }
+
+// Valori effettivamente presenti nei trade (tutti i conti) per un campo — include valori "orfani" non più in lista
+function bulkValuesInTrades(field) {
+  const set = new Set();
+  state.trades.forEach(t => {
+    if (field === 'tag') (t.tags || []).forEach(x => set.add(x));
+    else { const v = t[field]; set.add(v == null || v === '' ? '__EMPTY__' : v); }
+  });
+  return [...set].sort();
+}
+function bulkDisplay(field, v) {
+  if (v === '__EMPTY__') return '(vuoto)';
+  if (v === '__REMOVE__') return '(rimuovi)';
+  if (field === 'direction') return v === 'long' ? 'Long' : v === 'short' ? 'Short' : v;
+  return v;
+}
+function bulkCount(field, oldVal) {
+  if (!oldVal) return 0;
+  let n = 0;
+  state.trades.forEach(t => {
+    if (field === 'tag') { if ((t.tags || []).includes(oldVal)) n++; }
+    else { const v = (t[field] == null || t[field] === '') ? '__EMPTY__' : t[field]; if (v === oldVal) n++; }
+  });
+  return n;
+}
+async function bulkApplyReplace(field, oldVal, newVal) {
+  let n = 0;
+  for (const t of state.trades) {
+    if (field === 'tag') {
+      const tags = t.tags || [];
+      if (tags.includes(oldVal)) {
+        let nt = tags.filter(x => x !== oldVal);
+        if (newVal && newVal !== '__REMOVE__' && !nt.includes(newVal)) nt.push(newVal);
+        t.tags = nt;
+        await dbPut(TRADES_STORE, t); n++;
+      }
+    } else {
+      const cur = (t[field] == null || t[field] === '') ? '__EMPTY__' : t[field];
+      if (cur === oldVal) {
+        t[field] = (newVal === '__EMPTY__') ? '' : newVal;
+        await dbPut(TRADES_STORE, t); n++;
+      }
+    }
+  }
+  return n;
+}
+
+function renderBulk() {
+  const b = state.bulk;
+  const optEl = (v, txt, sel) => `<option value="${escapeHtml(v)}"${sel ? ' selected' : ''}>${escapeHtml(txt)}</option>`;
+
+  // --- b1: campo ---
+  const fieldSel = document.getElementById('bulk-field');
+  fieldSel.innerHTML = BULK_FIELDS.map(f => optEl(f.key, f.label, f.key === b.field)).join('');
+  fieldSel.onchange = e => { b.field = e.target.value; b.oldVal = ''; b.newVal = ''; render(); };
+
+  const def = bulkFieldDef(b.field);
+  // valore vecchio: valori presenti nei trade
+  const oldVals = bulkValuesInTrades(b.field);
+  const oldSel = document.getElementById('bulk-old');
+  oldSel.innerHTML = optEl('', '— scegli —', !b.oldVal)
+    + oldVals.map(v => optEl(v, `${bulkDisplay(b.field, v)} (${bulkCount(b.field, v)})`, v === b.oldVal)).join('');
+  oldSel.onchange = e => { b.oldVal = e.target.value; render(); };
+
+  // valore nuovo: valori validi + speciali
+  const validVals = def.valid();
+  const newSel = document.getElementById('bulk-new');
+  let newOpts = validVals.map(v => optEl(v, bulkDisplay(b.field, v), v === b.newVal));
+  if (def.multi) newOpts.push(optEl('__REMOVE__', '(rimuovi)', b.newVal === '__REMOVE__'));
+  else newOpts.push(optEl('__EMPTY__', '(vuoto)', b.newVal === '__EMPTY__'));
+  newSel.innerHTML = optEl('', '— scegli —', !b.newVal) + newOpts.join('');
+  newSel.onchange = e => { b.newVal = e.target.value; render(); };
+
+  // anteprima
+  const prev = document.getElementById('bulk-preview');
+  const n = bulkCount(b.field, b.oldVal);
+  if (!b.oldVal || !b.newVal) {
+    prev.textContent = 'Scegli valore da cercare e sostituto.';
+  } else if (n === 0) {
+    prev.textContent = 'Nessun trade con questo valore.';
+  } else {
+    prev.innerHTML = `<b>${n}</b> trade verranno cambiati: <b>${escapeHtml(bulkDisplay(b.field, b.oldVal))}</b> → <b>${escapeHtml(bulkDisplay(b.field, b.newVal))}</b>`;
+  }
+  const applyBtn = document.getElementById('bulk-apply-btn');
+  applyBtn.disabled = !(b.oldVal && b.newVal && n > 0);
+  applyBtn.style.opacity = applyBtn.disabled ? '0.45' : '1';
+  applyBtn.onclick = async () => {
+    if (b.oldVal === b.newVal) { showToast('Valori uguali', 'error'); return; }
+    if (!confirm(`Cambiare ${n} trade?\n\n${bulkDisplay(b.field, b.oldVal)} → ${bulkDisplay(b.field, b.newVal)}\n\nSu tutti i conti.`)) return;
+    const done = await bulkApplyReplace(b.field, b.oldVal, b.newVal);
+    showToast(`✓ ${done} trade aggiornati`, 'success');
+    b.oldVal = ''; b.newVal = '';
+    render();
+  };
+
+  // --- b2: lista filtrata ---
+  const ffSel = document.getElementById('bulk-filter-field');
+  ffSel.innerHTML = BULK_FIELDS.map(f => optEl(f.key, f.label, f.key === b.filterField)).join('');
+  ffSel.onchange = e => { b.filterField = e.target.value; b.filterVal = ''; render(); };
+
+  const fVals = bulkValuesInTrades(b.filterField);
+  const fvSel = document.getElementById('bulk-filter-val');
+  fvSel.innerHTML = optEl('', '— scegli —', !b.filterVal)
+    + fVals.map(v => optEl(v, `${bulkDisplay(b.filterField, v)} (${bulkCount(b.filterField, v)})`, v === b.filterVal)).join('');
+  fvSel.onchange = e => { b.filterVal = e.target.value; render(); };
+
+  const listEl = document.getElementById('bulk-filtered-list');
+  if (!b.filterVal) { listEl.innerHTML = '<div class="empty" style="padding:12px 4px;">scegli un valore per vedere i trade</div>'; return; }
+  const matches = state.trades.filter(t => {
+    if (b.filterField === 'tag') return (t.tags || []).includes(b.filterVal);
+    const v = (t[b.filterField] == null || t[b.filterField] === '') ? '__EMPTY__' : t[b.filterField];
+    return v === b.filterVal;
+  }).sort((a, c) => (c.iso || '').localeCompare(a.iso || ''));
+  if (matches.length === 0) { listEl.innerHTML = '<div class="empty" style="padding:12px 4px;">nessun trade</div>'; return; }
+  buildTradeRows(listEl, matches, 'bulk');
 }
 
 // Costruisce le righe trade (riusato da log e da vista gruppo).
@@ -2382,7 +2568,7 @@ function buildTradeRows(list, trades, detailFrom) {
 function renderGroup() {
   const dim = state.groupDim;   // 'context' | 'setup' | 'tag' | 'asset'
   const val = state.groupVal;   // es. 'Bull', 'Higher low', '—' (vuoto)
-  const labelMap = { context: 'Contesto', setup: 'Setup', tag: 'Tag', asset: 'Asset', timeframe: 'Timeframe' };
+  const labelMap = { context: 'Contesto', setup: 'Setup', tag: 'Tag', asset: 'Asset', timeframe: 'Timeframe', direction: 'Direzione' };
   const isEmpty = (val === '—');
 
   const matches = tradesForCurrentAccount().filter(t => {
@@ -2393,8 +2579,9 @@ function renderGroup() {
     return isEmpty ? (!v) : (v === val);
   });
 
+  const dispVal = dim === 'direction' ? (val === 'long' ? 'Long' : val === 'short' ? 'Short' : val) : val;
   document.getElementById('group-title').textContent = isEmpty
-    ? `${labelMap[dim]}: (nessuno)` : `${labelMap[dim]}: ${val}`;
+    ? `${labelMap[dim]}: (nessuno)` : `${labelMap[dim]}: ${dispVal}`;
   document.getElementById('group-title-sub').textContent =
     `${matches.length} trade` + (isEmpty ? ' — manca questo campo' : '');
 
@@ -2636,7 +2823,15 @@ function renderStats() {
   const byTag = breakdownBy(arr, 'tag');
   const byContext = breakdownBy(arr, 'context');
   const byTimeframe = breakdownBy(arr, 'timeframe');
+  const byDirection = breakdownBy(arr, 'direction');
 
+  if (byDirection.length > 1) {
+    html += `
+      <div class="panel">
+        <div class="panel-title">Breakdown per direzione</div>
+        ${renderBreakdown(byDirection, 'direction')}
+      </div>`;
+  }
   if (byContext.length > 1) {
     html += `
       <div class="panel">
@@ -2788,10 +2983,13 @@ function renderBreakdown(items, dim) {
     const sign = s.expectancy >= 0 ? '+' : '';
     const tappable = dim ? ` breakdown-row-tap" data-group-dim="${dim}" data-group-val="${escapeHtml(item.key)}"` : '"';
     const chevron = dim ? '<span class="breakdown-chevron">›</span>' : '';
+    const dispKey = dim === 'direction'
+      ? (item.key === 'long' ? 'Long' : item.key === 'short' ? 'Short' : item.key)
+      : item.key;
     return `
       <div class="breakdown-row${tappable}>
         <div>
-          <div class="breakdown-label">${escapeHtml(item.key)}</div>
+          <div class="breakdown-label">${escapeHtml(dispKey)}</div>
           <div class="breakdown-stats">${item.count} trade · WR ${(s.winRate*100).toFixed(0)}%</div>
         </div>
         <div class="breakdown-value ${valCls}">${sign}${s.expectancy.toFixed(2)}R${chevron}</div>
@@ -3247,6 +3445,8 @@ function bindEvents() {
   document.getElementById('footer-back').onclick = () => navBack();
   document.getElementById('detail-back-btn').onclick = () => navBack();
   document.getElementById('group-back-btn').onclick = () => navBack();
+  document.getElementById('open-bulk-btn').onclick = () => navOpen('bulk');
+  document.getElementById('bulk-back-btn').onclick = () => navBack();
 
   // Form: direction
   document.getElementById('dir-long').onclick = () => { state.form.direction = 'long'; render(); };
