@@ -330,6 +330,27 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
   flex-wrap: wrap; margin-bottom: 5px;
   font-size: 11px;
 }
+/* Riga rettifica capitale (storico): non è un trade, aspetto volutamente dimesso */
+.adj-row {
+  background: var(--surface-alt);
+  border: 1px dashed var(--border-subtle);
+  border-radius: var(--radius);
+  padding: 8px 13px;
+  display: flex; align-items: center; gap: 8px;
+  flex-wrap: wrap; margin-bottom: 5px;
+  font-size: 11px; color: var(--text-muted);
+}
+.adj-row-icon { font-size: 12px; }
+.adj-row-label { font-family: var(--font-mono); }
+.adj-row-note { font-style: italic; }
+.adj-row-ts { margin-left: auto; font-family: var(--font-mono); font-size: 10px; }
+.adj-row-del {
+  background: none; border: none; color: var(--text-muted);
+  font-size: 15px; cursor: pointer; padding: 0 2px; line-height: 1;
+}
+.adj-row-del:hover { color: var(--text); }
+/* Form rettifica in Impostazioni */
+.adj-form { margin-top: 8px; }
 .trade-n { color: var(--text-muted); width: 26px; font-family: var(--font-mono); font-size: 10px; }
 .trade-dir {
   width: 38px; font-size: 10px;
@@ -1163,6 +1184,7 @@ const DEFAULT_CONFIG = {
 
 const state = {
   trades: [],
+  adjustments: [], // rettifiche di capitale (store separato: NON sono trade)
   config: { ...DEFAULT_CONFIG },
   view: 'log',
   form: makeEmptyForm(),
@@ -1172,6 +1194,7 @@ const state = {
   navStack: [],
   logLimit: 15,
   bulk: { field: 'setup', oldVal: '', newVal: '', filterField: 'setup', filterVal: '' },
+  adjFormAcc: null, // account con il form rettifica aperto in Impostazioni
   loading: true,
 };
 
@@ -1403,9 +1426,10 @@ function syncRiskFields() {
 //  INDEXEDDB
 // ============================================================
 const DB_NAME = 'tradelog';
-const DB_VERSION = 5;
+const DB_VERSION = 6;
 const TRADES_STORE = 'trades';
 const CONFIG_STORE = 'config';
+const ADJUSTMENTS_STORE = 'adjustments';
 
 function openDB() {
   return new Promise((resolve, reject) => {
@@ -1418,6 +1442,11 @@ function openDB() {
       }
       if (!db.objectStoreNames.contains(CONFIG_STORE)) {
         db.createObjectStore(CONFIG_STORE, { keyPath: 'key' });
+      }
+      // Migrazione v5 -> v6: store separato per le rettifiche di capitale
+      // (NON sono trade: mai mescolate allo store trades, mai nelle statistiche)
+      if (!db.objectStoreNames.contains(ADJUSTMENTS_STORE)) {
+        db.createObjectStore(ADJUSTMENTS_STORE, { keyPath: 'id' });
       }
       // Migrazione v1 -> v2: aggiungi account_id e tags ai trade esistenti
       if (e.oldVersion < 2 && db.objectStoreNames.contains(TRADES_STORE)) {
@@ -1572,6 +1601,11 @@ async function init() {
   } catch (e) {
     console.error('load trades', e);
   }
+  try {
+    state.adjustments = await dbGetAll(ADJUSTMENTS_STORE);
+  } catch (e) {
+    console.error('load adjustments', e);
+  }
   state.loading = false;
   // Defaults form
   state.form.asset = state.config.assets[0] || '';
@@ -1635,12 +1669,32 @@ function tradesForCurrentAccount() {
   return state.trades.filter(t => t.account_id === state.config.current_account_id);
 }
 
+// Rettifiche di capitale dell'account, in ordine cronologico
+function adjustmentsForAccount(accId) {
+  return state.adjustments
+    .filter(a => a.account_id === accId)
+    .sort((a, b) => a.iso.localeCompare(b.iso));
+}
+
+// Timeline unica del conto: trade + rettifiche di capitale, ordinati per iso.
+// Le rettifiche entrano SOLO nel calcolo del capitale, mai nelle statistiche.
+function accountTimeline(sortedTrades, accId) {
+  const events = [
+    ...sortedTrades.map(t => ({ iso: t.iso, trade: t })),
+    ...adjustmentsForAccount(accId).map(a => ({ iso: a.iso, adj: a })),
+  ];
+  events.sort((a, b) => a.iso.localeCompare(b.iso));
+  return events;
+}
+
 // Calcola il capitale dell'account al momento di un trade specifico
-// (capitale iniziale + somma P&L di tutti i trade chiusi PRIMA di quello)
+// (capitale iniziale + P&L di tutti i trade chiusi PRIMA + rettifiche datate PRIMA)
 function capitalAtTrade(trade, sortedTrades, acc) {
   let cap = acc.capital;
-  for (const t of sortedTrades) {
-    if (t.iso >= trade.iso) break;
+  for (const ev of accountTimeline(sortedTrades, trade.account_id)) {
+    if (ev.iso >= trade.iso) break;
+    if (ev.adj) { cap += ev.adj.amount; continue; }
+    const t = ev.trade;
     if (t.risk_amount != null) {
       cap += t.rr_actual * t.risk_amount;
     } else {
@@ -1653,14 +1707,16 @@ function capitalAtTrade(trade, sortedTrades, acc) {
   return cap;
 }
 
-// Capitale corrente totale dell'account (= capitale iniziale + tutti i P&L)
+// Capitale corrente totale dell'account (= iniziale + tutti i P&L + tutte le rettifiche)
 function currentCapital(accId) {
   const acc = state.config.accounts.find(a => a.id === accId) || currentAccount();
   const trades = state.trades
     .filter(t => t.account_id === accId)
     .sort((a, b) => a.iso.localeCompare(b.iso));
   let cap = acc.capital;
-  trades.forEach(t => {
+  accountTimeline(trades, accId).forEach(ev => {
+    if (ev.adj) { cap += ev.adj.amount; return; }
+    const t = ev.trade;
     if (t.risk_amount != null) {
       cap += t.rr_actual * t.risk_amount;
     } else {
@@ -1867,6 +1923,50 @@ async function deleteTrade(id) {
   }
 }
 
+// ---- Rettifiche di capitale ----
+// iso della rettifica: se la data scelta è oggi usa l'istante attuale, così tutti
+// i trade già registrati restano PRIMA della rettifica e nessun $ già visualizzato
+// cambia. Se è una data passata, usa la fine di quel giorno: i trade di quel giorno
+// non la vedono, quelli dei giorni successivi sì.
+function adjustmentIso(dateStr) {
+  const d = new Date();
+  const localToday = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  if (dateStr === localToday) return d.toISOString();
+  return new Date(dateStr + 'T23:59:59.999').toISOString();
+}
+
+async function addAdjustment(accId, amount, dateStr, note) {
+  const adj = {
+    id: Date.now(),
+    account_id: accId,
+    amount: amount,
+    note: note || '',
+    iso: adjustmentIso(dateStr),
+    ts: new Date(dateStr + 'T12:00:00').toLocaleDateString('it-IT'),
+  };
+  try {
+    await dbPut(ADJUSTMENTS_STORE, adj);
+    state.adjustments.push(adj);
+    state.adjFormAcc = null;
+    showToast('✓ Rettifica salvata', 'success');
+    render();
+  } catch (e) {
+    showToast('Errore salvataggio', 'error');
+    console.error(e);
+  }
+}
+
+async function deleteAdjustment(id) {
+  try {
+    await dbDelete(ADJUSTMENTS_STORE, id);
+    state.adjustments = state.adjustments.filter(a => a.id !== id);
+    render();
+  } catch (e) {
+    showToast('Errore eliminazione', 'error');
+    console.error(e);
+  }
+}
+
 function resetForm() {
   const acc = currentAccount();
   state.form = makeEmptyForm();
@@ -1902,10 +2002,11 @@ function exportData() {
     return;
   }
   const data = {
-    version: 2, app: 'tradelog',
+    version: 3, app: 'tradelog',
     exported_at: new Date().toISOString(),
     config: state.config,
     trades: state.trades,
+    adjustments: state.adjustments,
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -1951,6 +2052,11 @@ function importData(file) {
       });
       await dbBulkPut(TRADES_STORE, sorted);
       state.trades = sorted;
+      // Rettifiche: presenti solo nei backup v3+; un backup vecchio le azzera senza errori
+      await dbClear(ADJUSTMENTS_STORE);
+      const adjs = Array.isArray(data.adjustments) ? data.adjustments : [];
+      if (adjs.length > 0) await dbBulkPut(ADJUSTMENTS_STORE, adjs);
+      state.adjustments = adjs;
       if (data.config) {
         state.config = { ...DEFAULT_CONFIG, ...data.config };
         await saveConfig();
@@ -1973,7 +2079,9 @@ async function resetAll() {
   if (!reallysure) return;
   await dbClear(TRADES_STORE);
   await dbClear(CONFIG_STORE);
+  await dbClear(ADJUSTMENTS_STORE);
   state.trades = [];
+  state.adjustments = [];
   state.config = { ...DEFAULT_CONFIG };
   await saveConfig();
   applyTheme(state.config.theme);
@@ -2089,22 +2197,33 @@ function calcStats(arr) {
   };
 }
 
-function equityCurveData(arr) {
+// includeAdjustments: true solo per la curva reale (senza filtri); la curva
+// filtrata è ipotetica e resta fatta di soli trade. Le statistiche in R non
+// passano di qui e non vedono mai le rettifiche.
+function equityCurveData(arr, includeAdjustments) {
   const acc = currentAccount();
   let eq = acc.capital;
   const points = [{ n: 0, eq }];
   const sorted = [...arr].sort((a, b) => a.iso.localeCompare(b.iso));
-  sorted.forEach((t, i) => {
-    let pnl;
-    if (t.risk_amount != null) {
-      pnl = t.rr_actual * t.risk_amount;
+  const events = includeAdjustments
+    ? accountTimeline(sorted, acc.id)
+    : sorted.map(t => ({ iso: t.iso, trade: t }));
+  events.forEach(ev => {
+    if (ev.adj) {
+      eq = eq + ev.adj.amount;
     } else {
-      const base = t.capital_used != null ? t.capital_used : eq;
-      const risk = (t.risk_pct || acc.risk_pct) / 100;
-      pnl = t.rr_actual * risk * base;
+      const t = ev.trade;
+      let pnl;
+      if (t.risk_amount != null) {
+        pnl = t.rr_actual * t.risk_amount;
+      } else {
+        const base = t.capital_used != null ? t.capital_used : eq;
+        const risk = (t.risk_pct || acc.risk_pct) / 100;
+        pnl = t.rr_actual * risk * base;
+      }
+      eq = eq + pnl;
     }
-    eq = eq + pnl;
-    points.push({ n: i + 1, eq: parseFloat(eq.toFixed(2)) });
+    points.push({ n: points.length, eq: parseFloat(eq.toFixed(2)) });
   });
   return points;
 }
@@ -2368,22 +2487,55 @@ function renderLog() {
 // Storico: lista dei trade del conto corrente, a blocchi (ultimi N + "mostra altri")
 function renderHistory() {
   const list = document.getElementById('trades-list');
-  const arr = tradesForCurrentAccount();
-  if (arr.length === 0) {
+  const trades = tradesForCurrentAccount();
+  const adjs = adjustmentsForAccount(state.config.current_account_id);
+  if (trades.length === 0 && adjs.length === 0) {
     list.innerHTML = '<div class="empty">' + (state.loading ? '…' : 'nessun trade ancora') + '</div>';
     return;
   }
-  const ordered = [...arr].reverse(); // più recente in cima
+  // Timeline unica (trade + rettifiche), più recente in cima
+  const items = [
+    ...trades.map(t => ({ iso: t.iso || '', trade: t })),
+    ...adjs.map(a => ({ iso: a.iso || '', adj: a })),
+  ].sort((x, y) => y.iso.localeCompare(x.iso));
   const limit = state.logLimit || 15;
-  buildTradeRows(list, ordered.slice(0, limit), 'history');
-  if (ordered.length > limit) {
+  const slice = items.slice(0, limit);
+  buildTradeRows(list, slice.filter(it => it.trade).map(it => it.trade), 'history');
+  // Inserisce le righe rettifica nelle posizioni cronologiche corrette
+  slice.forEach((it, i) => {
+    if (!it.adj) return;
+    list.insertBefore(buildAdjustmentRow(it.adj), list.children[i] || null);
+  });
+  if (items.length > limit) {
     const more = document.createElement('button');
     more.className = 'btn-secondary';
     more.style.cssText = 'width:100%;margin-top:12px;';
-    more.textContent = `Mostra altri (${ordered.length - limit} rimanenti)`;
+    more.textContent = `Mostra altri (${items.length - limit} rimanenti)`;
     more.onclick = () => { state.logLimit = limit + 15; render(); };
     list.appendChild(more);
   }
+}
+
+// Riga "rettifica capitale" nello storico: distinta, non apre il dettaglio trade,
+// eliminabile con conferma (eliminandola il capitale si ricalcola).
+function buildAdjustmentRow(adj) {
+  const row = document.createElement('div');
+  row.className = 'adj-row';
+  const amountTxt = `${adj.amount >= 0 ? '+' : '−'}$${Math.abs(adj.amount).toFixed(2)}`;
+  row.innerHTML = `
+    <span class="adj-row-icon">⚖</span>
+    <span class="adj-row-label">Rettifica <b class="${adj.amount >= 0 ? 'val-pos' : 'val-neg'}">${amountTxt}</b></span>
+    ${adj.note ? `<span class="adj-row-note">${escapeHtml(adj.note)}</span>` : ''}
+    <span class="adj-row-ts">${escapeHtml(adj.ts || '')}</span>
+    <button class="adj-row-del" data-adj-del title="Elimina rettifica">×</button>
+  `;
+  row.querySelector('[data-adj-del]').onclick = (e) => {
+    e.stopPropagation();
+    if (confirm(`Eliminare la rettifica ${amountTxt}${adj.note ? ` (${adj.note})` : ''}?\n\nIl capitale del conto verrà ricalcolato.`)) {
+      deleteAdjustment(adj.id);
+    }
+  };
+  return row;
 }
 
 // ===== MODIFICA IN BLOCCO =====
@@ -2884,7 +3036,7 @@ function renderStats() {
     };
   });
 
-  drawEquityChart(equityCurveData(arr));
+  drawEquityChart(equityCurveData(arr, !filtersActive));
   drawBarChart(arr);
 }
 
@@ -3135,8 +3287,11 @@ function renderSettings() {
   // Accounts
   const accBox = document.getElementById('accounts-editor');
   accBox.innerHTML = '';
+  const _d = new Date();
+  const localTodayStr = `${_d.getFullYear()}-${String(_d.getMonth() + 1).padStart(2, '0')}-${String(_d.getDate()).padStart(2, '0')}`;
   state.config.accounts.forEach((a, i) => {
     const currentCap = currentCapital(a.id);
+    const nAdj = state.adjustments.filter(x => x.account_id === a.id).length;
     const delta = currentCap - a.capital;
     const deltaSign = delta >= 0 ? '+' : '';
     const deltaCls = delta > 0 ? 'val-pos' : delta < 0 ? 'val-neg' : 'val-zero';
@@ -3164,6 +3319,25 @@ function renderSettings() {
           <input class="input" type="number" value="${a.risk_pct}" min="0" step="0.1" inputmode="decimal" data-acc-risk="${a.id}">
         </div>
       </div>
+      <button class="btn-secondary" style="width:100%; font-size:11px; margin-top:8px;" data-adj-toggle="${a.id}">⚖ Rettifica capitale${nAdj > 0 ? ` (${nAdj})` : ''}</button>
+      <div class="adj-form ${state.adjFormAcc === a.id ? '' : 'hidden'}">
+        <div class="field-row">
+          <div class="field-col">
+            <span class="field-label">Importo $ (+/−)</span>
+            <input class="input" type="number" step="0.01" inputmode="decimal" placeholder="es. -40" data-adj-amount="${a.id}">
+          </div>
+          <div class="field-col">
+            <span class="field-label">Data</span>
+            <input class="input" type="date" value="${localTodayStr}" data-adj-date="${a.id}">
+          </div>
+        </div>
+        <div class="field">
+          <span class="field-label">Nota (facoltativa)</span>
+          <input class="input" type="text" placeholder="es. fee e funding giugno" data-adj-note="${a.id}">
+        </div>
+        <button class="btn-secondary" style="width:100%;" data-adj-save="${a.id}">Salva rettifica</button>
+        <div class="hint">Entra nel saldo del conto dalla data scelta in poi. Non è un trade: nessuna statistica cambia. La vedi (e la elimini) nello Storico.</div>
+      </div>
     `;
     accBox.appendChild(card);
   });
@@ -3187,6 +3361,25 @@ function renderSettings() {
       const id = inp.dataset.accRisk;
       const acc = state.config.accounts.find(a => a.id === id);
       if (acc) { acc.risk_pct = parseFloat(e.target.value) || 1.0; await saveConfig(); render(); }
+    };
+  });
+  // Rettifiche di capitale
+  accBox.querySelectorAll('[data-adj-toggle]').forEach(btn => {
+    btn.onclick = () => {
+      const id = btn.dataset.adjToggle;
+      state.adjFormAcc = state.adjFormAcc === id ? null : id;
+      renderSettings();
+    };
+  });
+  accBox.querySelectorAll('[data-adj-save]').forEach(btn => {
+    btn.onclick = async () => {
+      const id = btn.dataset.adjSave;
+      const amount = parseFloat(accBox.querySelector(`[data-adj-amount="${id}"]`).value);
+      const dateStr = accBox.querySelector(`[data-adj-date="${id}"]`).value;
+      const note = accBox.querySelector(`[data-adj-note="${id}"]`).value.trim();
+      if (isNaN(amount) || amount === 0) { showToast('Inserisci un importo diverso da 0', 'error'); return; }
+      if (!dateStr) { showToast('Inserisci una data', 'error'); return; }
+      await addAdjustment(id, amount, dateStr, note);
     };
   });
 
