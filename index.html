@@ -330,6 +330,55 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
   flex-wrap: wrap; margin-bottom: 5px;
   font-size: 11px;
 }
+/* =========================================================
+   SCHEDA MESE (consistenza mensile)
+   Verde/rosso semaforici volutamente FISSI (unica eccezione ai
+   temi, come da specifica); tutto il resto usa le variabili tema.
+   ========================================================= */
+:root {
+  --cal-pos: #2E9E5B;
+  --cal-neg: #D0453A;
+}
+.month-nav {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; margin: 4px 0 14px;
+}
+.month-nav-btn { flex: none; width: 44px; padding: 8px 0; font-size: 16px; text-align: center; }
+.month-nav-title {
+  font-family: var(--font-display); font-size: 18px; font-weight: 700;
+  color: var(--text); text-align: center; flex: 1;
+}
+.week-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 2px; border-bottom: 1px solid var(--border-subtle);
+  font-size: 12px;
+}
+.week-row:last-child { border-bottom: none; }
+.week-row-label { font-family: var(--font-mono); color: var(--text); }
+.week-row-count { color: var(--text-muted); font-size: 10px; }
+.week-row-val { margin-left: auto; font-family: var(--font-mono); font-weight: 700; }
+.week-row-val.cal-pos { color: var(--cal-pos); }
+.week-row-val.cal-neg { color: var(--cal-neg); }
+.week-row-val.cal-flat { color: var(--text-muted); font-weight: 400; }
+.cal-head {
+  display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px;
+  margin-bottom: 4px;
+  font-size: 9px; color: var(--text-muted); font-family: var(--font-mono);
+  text-align: center;
+}
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.cal-day {
+  aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
+  border-radius: var(--radius); font-family: var(--font-mono); font-size: 11px;
+}
+.cal-day.cal-flat {
+  background: var(--surface-alt); color: var(--text-muted);
+  border: 1px solid var(--border-subtle);
+}
+.cal-day.cal-pos { background: var(--cal-pos); color: #FFFFFF; font-weight: 700; }
+.cal-day.cal-neg { background: var(--cal-neg); color: #FFFFFF; font-weight: 700; }
+.cal-day.cal-empty { background: none; }
+
 /* Riga rettifica capitale (storico): non è un trade, aspetto volutamente dimesso */
 .adj-row {
   background: var(--surface-alt);
@@ -750,6 +799,7 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
   <button class="view-tab active" data-view="log">Nuovo</button>
   <button class="view-tab" data-view="history">Storico</button>
   <button class="view-tab" data-view="stats">Stats</button>
+  <button class="view-tab" data-view="monthly">Mese</button>
 </div>
 
 <!-- ================ LOG VIEW ================ -->
@@ -868,6 +918,11 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
 <div id="stats-view" class="hidden">
   <div class="filter-bar" id="stats-filters"></div>
   <div id="stats-content"></div>
+</div>
+
+<!-- ================ MONTHLY VIEW (consistenza mensile) ================ -->
+<div id="monthly-view" class="hidden">
+  <div id="monthly-content"></div>
 </div>
 
 <!-- ================ DETAIL VIEW ================ -->
@@ -1195,6 +1250,7 @@ const state = {
   logLimit: 15,
   bulk: { field: 'setup', oldVal: '', newVal: '', filterField: 'setup', filterVal: '' },
   adjFormAcc: null, // account con il form rettifica aperto in Impostazioni
+  monthly: null, // { y, m } mese visualizzato nella scheda Mese (null = mese corrente)
   loading: true,
 };
 
@@ -2228,6 +2284,136 @@ function equityCurveData(arr, includeAdjustments) {
   return points;
 }
 
+// ============================================================
+//  CONSISTENZA MENSILE (scheda "Mese")
+// ============================================================
+// P&L $ di un singolo trade: stessa logica di calcStats/dettaglio.
+// Per i trade con risk_amount è esattamente il $ digitato; per i vecchi
+// trade in modalità % si ricostruisce dal capitale storico.
+function tradePnlDollar(t, sortedAccTrades, acc) {
+  if (t.risk_amount != null) return t.rr_actual * t.risk_amount;
+  const base = t.capital_used != null ? t.capital_used : capitalAtTrade(t, sortedAccTrades, acc);
+  return t.rr_actual * (t.risk_pct || acc.risk_pct) / 100 * base;
+}
+
+function monthlyPeriod() {
+  if (!state.monthly) {
+    const now = new Date();
+    state.monthly = { y: now.getFullYear(), m: now.getMonth() };
+  }
+  return state.monthly;
+}
+
+const MONTH_NAMES = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
+  'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'];
+
+function renderMonthly() {
+  const box = document.getElementById('monthly-content');
+  const { y, m } = monthlyPeriod();
+  const acc = currentAccount();
+  // Solo trade dell'account attivo; le rettifiche di capitale sono ESCLUSE (non sono trade)
+  const allAcc = tradesForCurrentAccount().sort((a, b) => a.iso.localeCompare(b.iso));
+
+  // Aggregazione per giorno LOCALE del mese selezionato
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+  const byDay = {}; // giorno (1..31) -> { pnl, r, count }
+  let monthPnl = 0, monthR = 0, monthCount = 0;
+  allAcc.forEach(t => {
+    const d = new Date(t.iso);
+    if (d.getFullYear() !== y || d.getMonth() !== m) return;
+    const day = d.getDate();
+    const pnl = tradePnlDollar(t, allAcc, acc);
+    byDay[day] = byDay[day] || { pnl: 0, r: 0, count: 0 };
+    byDay[day].pnl += pnl;
+    byDay[day].r += t.rr_actual;
+    byDay[day].count++;
+    monthPnl += pnl; monthR += t.rr_actual; monthCount++;
+  });
+
+  // Settimane lun–dom, tagliate sui confini del mese
+  const weeks = [];
+  let start = 1;
+  while (start <= daysInMonth) {
+    const dow = (new Date(y, m, start).getDay() + 6) % 7; // 0 = lunedì
+    const end = Math.min(start + (6 - dow), daysInMonth);
+    let pnl = 0, count = 0;
+    for (let d = start; d <= end; d++) {
+      if (byDay[d]) { pnl += byDay[d].pnl; count += byDay[d].count; }
+    }
+    weeks.push({ start, end, pnl, count });
+    start = end + 1;
+  }
+
+  const fmt$ = v => `${v > 0 ? '+' : v < 0 ? '−' : ''}$${Math.abs(v).toFixed(2)}`;
+  const fmtR = v => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(2)}R`;
+  const valCls = v => v > 0 ? 'val-pos' : v < 0 ? 'val-neg' : 'val-zero';
+  const calCls = v => v > 0 ? 'cal-pos' : v < 0 ? 'cal-neg' : 'cal-flat';
+
+  // Griglia calendario: celle vuote prima del giorno 1 per allineare a lun–dom
+  const leadBlanks = (new Date(y, m, 1).getDay() + 6) % 7;
+  let calCells = '';
+  for (let i = 0; i < leadBlanks; i++) calCells += '<div class="cal-day cal-empty"></div>';
+  for (let d = 1; d <= daysInMonth; d++) {
+    const info = byDay[d];
+    const cls = info ? calCls(info.pnl) : 'cal-flat';
+    const title = info ? `${d}: ${fmt$(info.pnl)} · ${info.count} trade` : `${d}: nessun trade`;
+    calCells += `<div class="cal-day ${cls}" title="${title}">${d}</div>`;
+  }
+
+  const weeksHtml = weeks.map(w => `
+    <div class="week-row">
+      <span class="week-row-label">Sett. ${w.start}–${w.end}</span>
+      <span class="week-row-count">${w.count > 0 ? `${w.count} trade` : '—'}</span>
+      <span class="week-row-val ${w.count > 0 ? calCls(w.pnl) : 'cal-flat'}">${w.count > 0 ? fmt$(w.pnl) : ''}</span>
+    </div>`).join('');
+
+  box.innerHTML = `
+    <div class="month-nav">
+      <button class="btn-secondary month-nav-btn" id="month-prev">‹</button>
+      <div class="month-nav-title">${MONTH_NAMES[m]} ${y}</div>
+      <button class="btn-secondary month-nav-btn" id="month-next">›</button>
+    </div>
+
+    <div class="stat-grid">
+      <div class="stat-box">
+        <div class="stat-label">P&amp;L $ del mese</div>
+        <div class="stat-value ${valCls(monthPnl)}">${fmt$(monthPnl)}</div>
+        <div class="stat-sub">${monthCount} trade</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">P&amp;L R del mese</div>
+        <div class="stat-value ${valCls(monthR)}">${fmtR(monthR)}</div>
+        <div class="stat-sub">somma R</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Settimane</div>
+      ${weeksHtml}
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Calendario</div>
+      <div class="cal-head">
+        <span>L</span><span>M</span><span>M</span><span>G</span><span>V</span><span>S</span><span>D</span>
+      </div>
+      <div class="cal-grid">${calCells}</div>
+    </div>
+    ${monthCount === 0 ? '<div class="empty">nessun trade in questo mese</div>' : ''}
+  `;
+
+  document.getElementById('month-prev').onclick = () => {
+    const p = monthlyPeriod();
+    p.m--; if (p.m < 0) { p.m = 11; p.y--; }
+    renderMonthly();
+  };
+  document.getElementById('month-next').onclick = () => {
+    const p = monthlyPeriod();
+    p.m++; if (p.m > 11) { p.m = 0; p.y++; }
+    renderMonthly();
+  };
+}
+
 function breakdownBy(arr, key) {
   const groups = {};
   arr.forEach(t => {
@@ -2271,7 +2457,7 @@ function render() {
 
   // View tabs
   document.querySelectorAll('.view-tab').forEach(b => {
-    b.classList.toggle('active', b.dataset.view === state.view && (state.view === 'log' || state.view === 'history' || state.view === 'stats'));
+    b.classList.toggle('active', b.dataset.view === state.view && (state.view === 'log' || state.view === 'history' || state.view === 'stats' || state.view === 'monthly'));
   });
   document.getElementById('settings-btn').classList.toggle('active', state.view === 'settings');
 
@@ -2279,6 +2465,7 @@ function render() {
   document.getElementById('log-view').classList.toggle('hidden', state.view !== 'log');
   document.getElementById('history-view').classList.toggle('hidden', state.view !== 'history');
   document.getElementById('stats-view').classList.toggle('hidden', state.view !== 'stats');
+  document.getElementById('monthly-view').classList.toggle('hidden', state.view !== 'monthly');
   document.getElementById('detail-view').classList.toggle('hidden', state.view !== 'detail');
   document.getElementById('settings-view').classList.toggle('hidden', state.view !== 'settings');
   document.getElementById('group-view').classList.toggle('hidden', state.view !== 'group');
@@ -2326,6 +2513,7 @@ function render() {
   if (state.view === 'log') renderLog();
   else if (state.view === 'history') renderHistory();
   else if (state.view === 'stats') renderStats();
+  else if (state.view === 'monthly') renderMonthly();
   else if (state.view === 'detail') renderDetail();
   else if (state.view === 'settings') renderSettings();
   else if (state.view === 'group') renderGroup();
