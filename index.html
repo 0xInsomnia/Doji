@@ -377,6 +377,14 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
   color: var(--text); font-weight: 800;
 }
 .cal-day.cal-empty { background: none; }
+.cal-day[data-day] { cursor: pointer; }
+.cal-day[data-day]:active { opacity: 0.7; }
+.year-pnl {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 10px; padding: 4px 2px 0;
+}
+.year-pnl-count { font-size: 10px; color: var(--text-muted); font-family: var(--font-mono); }
+.year-pnl-val { font-family: var(--font-mono); font-size: 22px; }
 
 /* Riga rettifica capitale (storico): non è un trade, aspetto volutamente dimesso */
 .adj-row {
@@ -939,7 +947,7 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
 <!-- ================ GROUP VIEW (trade di un gruppo dalle stats) ================ -->
 <div id="group-view" class="hidden detail-view-wrap">
   <div class="detail-header">
-    <button class="detail-back" id="group-back-btn">← Stats</button>
+    <button class="detail-back" id="group-back-btn">← Indietro</button>
     <div>
       <div class="detail-title" id="group-title"></div>
       <div class="detail-title-sub" id="group-title-sub"></div>
@@ -2356,8 +2364,21 @@ function renderMonthly() {
     const info = byDay[d];
     const cls = info ? calCls(info.pnl) : 'cal-flat';
     const title = info ? `${d}: ${fmt$(info.pnl)} · ${info.count} trade` : `${d}: nessun trade`;
-    calCells += `<div class="cal-day ${cls}" title="${title}">${d}</div>`;
+    calCells += `<div class="cal-day ${cls}"${info ? ` data-day="${d}"` : ''} title="${title}">${d}</div>`;
   }
+
+  // P&L annuale: somma di TUTTI gli account (rettifiche escluse), anno visualizzato
+  let yearPnl = 0, yearCount = 0;
+  state.config.accounts.forEach(a => {
+    const accTrades = state.trades
+      .filter(t => t.account_id === a.id)
+      .sort((x, z) => x.iso.localeCompare(z.iso));
+    accTrades.forEach(t => {
+      if (new Date(t.iso).getFullYear() !== y) return;
+      yearPnl += tradePnlDollar(t, accTrades, a);
+      yearCount++;
+    });
+  });
 
   const weeksHtml = weeks.map(w => `
     <div class="week-row">
@@ -2399,6 +2420,15 @@ function renderMonthly() {
       <div class="cal-grid">${calCells}</div>
     </div>
     ${monthCount === 0 ? '<div class="empty">nessun trade in questo mese</div>' : ''}
+
+    <div class="panel">
+      <div class="panel-title">Anno ${y} — tutti i conti</div>
+      <div class="year-pnl">
+        <span class="year-pnl-count">${yearCount} trade</span>
+        <span class="year-pnl-val ${valCls(yearPnl)}">${fmt$(yearPnl)}</span>
+      </div>
+      <div class="hint">P&amp;L unico: somma di tutti gli account, rettifiche escluse.</div>
+    </div>
   `;
 
   document.getElementById('month-prev').onclick = () => {
@@ -2411,6 +2441,15 @@ function renderMonthly() {
     p.m++; if (p.m > 11) { p.m = 0; p.y++; }
     renderMonthly();
   };
+
+  // Tap su un giorno con trade → lista dei trade di quel giorno (vista gruppo)
+  box.querySelectorAll('[data-day]').forEach(el => {
+    el.onclick = () => {
+      const d = parseInt(el.dataset.day);
+      const val = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      navOpen('group', { groupDim: 'day', groupVal: val });
+    };
+  });
 }
 
 function breakdownBy(arr, key) {
@@ -2907,10 +2946,16 @@ function buildTradeRows(list, trades, detailFrom) {
 function renderGroup() {
   const dim = state.groupDim;   // 'context' | 'setup' | 'tag' | 'asset'
   const val = state.groupVal;   // es. 'Bull', 'Higher low', '—' (vuoto)
-  const labelMap = { context: 'Contesto', setup: 'Setup', tag: 'Tag', asset: 'Asset', timeframe: 'Timeframe', direction: 'Direzione' };
+  const labelMap = { context: 'Contesto', setup: 'Setup', tag: 'Tag', asset: 'Asset', timeframe: 'Timeframe', direction: 'Direzione', day: 'Giorno' };
   const isEmpty = (val === '—');
 
   const matches = tradesForCurrentAccount().filter(t => {
+    if (dim === 'day') {
+      // val = 'YYYY-MM-DD' (giorno locale, dal calendario della scheda Mese)
+      const [yy, mm, dd] = val.split('-').map(Number);
+      const d = new Date(t.iso);
+      return d.getFullYear() === yy && d.getMonth() === mm - 1 && d.getDate() === dd;
+    }
     if (dim === 'tag') {
       return isEmpty ? (!t.tags || t.tags.length === 0) : (t.tags || []).includes(val);
     }
@@ -2918,7 +2963,9 @@ function renderGroup() {
     return isEmpty ? (!v) : (v === val);
   });
 
-  const dispVal = dim === 'direction' ? (val === 'long' ? 'Long' : val === 'short' ? 'Short' : val) : val;
+  const dispVal = dim === 'direction' ? (val === 'long' ? 'Long' : val === 'short' ? 'Short' : val)
+    : dim === 'day' ? val.split('-').reverse().join('/')
+    : val;
   document.getElementById('group-title').textContent = isEmpty
     ? `${labelMap[dim]}: (nessuno)` : `${labelMap[dim]}: ${dispVal}`;
   document.getElementById('group-title-sub').textContent =
