@@ -332,13 +332,10 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
 }
 /* =========================================================
    SCHEDA MESE (consistenza mensile)
-   Verde/rosso semaforici volutamente FISSI (unica eccezione ai
-   temi, come da specifica); tutto il resto usa le variabili tema.
+   Giorni e settimane usano i colori win/loss del TEMA attivo.
+   Nei temi mono vale il linguaggio dell'app: profitto = pieno,
+   perdita = contorno (stesso pattern di val-pos/val-neg).
    ========================================================= */
-:root {
-  --cal-pos: #2E9E5B;
-  --cal-neg: #D0453A;
-}
 .month-nav {
   display: flex; align-items: center; justify-content: space-between;
   gap: 10px; margin: 4px 0 14px;
@@ -356,10 +353,7 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
 .week-row:last-child { border-bottom: none; }
 .week-row-label { font-family: var(--font-mono); color: var(--text); }
 .week-row-count { color: var(--text-muted); font-size: 10px; }
-.week-row-val { margin-left: auto; font-family: var(--font-mono); font-weight: 700; }
-.week-row-val.cal-pos { color: var(--cal-pos); }
-.week-row-val.cal-neg { color: var(--cal-neg); }
-.week-row-val.cal-flat { color: var(--text-muted); font-weight: 400; }
+.week-row-val { margin-left: auto; font-family: var(--font-mono); }
 .cal-head {
   display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px;
   margin-bottom: 4px;
@@ -375,8 +369,13 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
   background: var(--surface-alt); color: var(--text-muted);
   border: 1px solid var(--border-subtle);
 }
-.cal-day.cal-pos { background: var(--cal-pos); color: #FFFFFF; font-weight: 700; }
-.cal-day.cal-neg { background: var(--cal-neg); color: #FFFFFF; font-weight: 700; }
+.cal-day.cal-pos { background: var(--win); color: var(--on-win); font-weight: 700; }
+.cal-day.cal-neg { background: var(--loss); color: var(--on-loss); font-weight: 700; }
+/* Temi mono: la perdita (loss trasparente) diventa cella con contorno */
+[data-mono="true"] .cal-day.cal-neg {
+  background: transparent; border: 1.5px solid var(--text);
+  color: var(--text); font-weight: 800;
+}
 .cal-day.cal-empty { background: none; }
 
 /* Riga rettifica capitale (storico): non è un trade, aspetto volutamente dimesso */
@@ -2364,7 +2363,7 @@ function renderMonthly() {
     <div class="week-row">
       <span class="week-row-label">Sett. ${w.start}–${w.end}</span>
       <span class="week-row-count">${w.count > 0 ? `${w.count} trade` : '—'}</span>
-      <span class="week-row-val ${w.count > 0 ? calCls(w.pnl) : 'cal-flat'}">${w.count > 0 ? fmt$(w.pnl) : ''}</span>
+      <span class="week-row-val ${w.count > 0 ? valCls(w.pnl) : 'val-zero'}">${w.count > 0 ? fmt$(w.pnl) : ''}</span>
     </div>`).join('');
 
   box.innerHTML = `
