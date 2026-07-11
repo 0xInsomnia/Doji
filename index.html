@@ -678,9 +678,10 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
 #home-view { position: relative; }
 .home-inner {
   display: flex; flex-direction: column;
-  min-height: calc(100vh - 250px);
-  min-height: calc(100dvh - 250px);
+  min-height: calc(100vh - 212px);
+  min-height: calc(100dvh - 212px);
 }
+.home-bottom .panel { margin-bottom: 0; }
 .home-bottom { margin-top: auto; } /* P&L ancorato in fondo alla pagina */
 .home-watermark {
   /* Ancorato allo schermo: il quadrante sta al centro della pagina,
@@ -3074,17 +3075,13 @@ function renderHome() {
     ? `<div class="tilt-banner">${tiltBannerText(tilt.streak, tilt.lossToday)}</div>`
     : '';
 
-  // Per ogni conto: capitale corrente e P&L del mese in corso
-  const now = new Date();
-  const y = now.getFullYear(), m = now.getMonth();
+  // Per ogni conto: capitale corrente e P&L TOTALE (tutti i trade, rettifiche escluse)
   const accs = state.config.accounts.map(a => {
     const accTrades = state.trades
       .filter(t => t.account_id === a.id)
       .sort((x, z) => x.iso.localeCompare(z.iso));
     let pnl = 0, count = 0;
     accTrades.forEach(t => {
-      const d = new Date(t.iso);
-      if (d.getFullYear() !== y || d.getMonth() !== m) return;
       pnl += tradePnlDollar(t, accTrades, a);
       count++;
     });
@@ -3128,7 +3125,7 @@ function renderHome() {
           </button>`).join('')}
       </div>
       <div class="home-bottom">
-        <div class="home-kicker">P&amp;L del mese</div>
+        <div class="home-kicker">P&amp;L totale</div>
         <div class="panel">
           ${accs.map(r => {
             const roi = r.a.capital > 0 ? (r.pnl / r.a.capital) * 100 : 0;
