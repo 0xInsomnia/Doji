@@ -678,9 +678,8 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
 #home-view { position: relative; min-height: 62vh; }
 .home-watermark {
   position: absolute; inset: 0;
-  display: flex; align-items: flex-end; justify-content: center;
-  padding-bottom: 4vh;
-  color: var(--text); opacity: 0.05;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text); opacity: 0.07;
   pointer-events: none; z-index: 0;
 }
 .home-inner { position: relative; z-index: 1; }
@@ -689,17 +688,22 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
   letter-spacing: 0.2em; text-transform: uppercase;
   color: var(--text-muted); margin: 22px 4px 10px;
 }
-.home-accounts { display: flex; gap: 8px; }
+.home-accounts { display: flex; gap: 10px; }
 .home-acc {
-  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 7px;
-  padding: 16px 6px 13px;
-  background: var(--surface);
+  flex: 1; aspect-ratio: 1; border-radius: 50%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  padding: 10px;
+  /* semitrasparente: lascia intravedere il logo watermark */
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-card);
   box-shadow: var(--shadow);
   cursor: pointer;
   color: var(--text);
   transition: transform 0.12s ease, border-color 0.15s;
+}
+/* Anche i pannelli della Home lasciano trasparire il watermark */
+#home-view .panel {
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
 }
 .home-acc:active { transform: scale(0.96); }
 .home-acc svg { color: var(--accent); }
