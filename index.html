@@ -698,7 +698,7 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
   letter-spacing: 0.2em; text-transform: uppercase;
   color: var(--text-muted); margin: 22px 4px 10px;
 }
-.home-accounts { display: flex; gap: 10px; }
+.home-accounts { display: flex; gap: 10px; margin-top: 16px; }
 .home-acc {
   flex: 1; aspect-ratio: 1; border-radius: 50%;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
@@ -2826,6 +2826,9 @@ function render() {
   // Account tabs
   renderAccountTabs();
 
+  // In Home il sottotitolo (n trade · conto · $) è ridondante: lo mostrano le monete
+  document.getElementById('subtitle').classList.toggle('hidden', state.view === 'home');
+
   // Bottom nav: stato attivo (le sub-viste non evidenziano nulla)
   document.querySelectorAll('.bottom-nav-item').forEach(b => {
     b.classList.toggle('active', b.dataset.view === state.view);
@@ -3115,7 +3118,6 @@ function renderHome() {
     <div class="home-watermark">${iconSvg(340)}</div>
     <div class="home-inner">
       ${tiltHtml}
-      <div class="home-kicker">Nuovo trade su</div>
       <div class="home-accounts">
         ${accs.map(r => `
           <button class="home-acc" data-home-acc="${r.a.id}">
@@ -3125,7 +3127,6 @@ function renderHome() {
           </button>`).join('')}
       </div>
       <div class="home-bottom">
-        <div class="home-kicker">P&amp;L totale</div>
         <div class="panel">
           ${accs.map(r => {
             const roi = r.a.capital > 0 ? (r.pnl / r.a.capital) * 100 : 0;
