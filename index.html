@@ -677,8 +677,11 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
    ========================================================= */
 #home-view { position: relative; min-height: 62vh; }
 .home-watermark {
-  position: absolute; inset: 0;
+  /* Ancorato allo schermo: il quadrante sta al centro della pagina,
+     nella zona libera sotto i pannelli */
+  position: fixed; inset: 0;
   display: flex; align-items: center; justify-content: center;
+  padding-top: 12vh;
   color: var(--text); opacity: 0.07;
   pointer-events: none; z-index: 0;
 }
