@@ -675,7 +675,13 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
 /* =========================================================
    HOME
    ========================================================= */
-#home-view { position: relative; min-height: 62vh; }
+#home-view { position: relative; }
+.home-inner {
+  display: flex; flex-direction: column;
+  min-height: calc(100vh - 250px);
+  min-height: calc(100dvh - 250px);
+}
+.home-bottom { margin-top: auto; } /* P&L ancorato in fondo alla pagina */
 .home-watermark {
   /* Ancorato allo schermo: il quadrante sta al centro della pagina,
      nella zona libera sotto i pannelli */
@@ -723,7 +729,8 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
 .home-pnl-row:last-child { border-bottom: none; }
 .home-pnl-name { flex: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .home-pnl-cap { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); }
-.home-pnl-val { font-family: var(--font-mono); font-weight: 700; min-width: 76px; text-align: right; }
+.home-pnl-val { font-family: var(--font-mono); font-weight: 700; text-align: right; }
+.home-pnl-roi { font-family: var(--font-mono); font-size: 10px; min-width: 52px; text-align: right; }
 
 /* Toast globale: fisso sopra la bottom nav (regola su id perché
    showToast azzera la lista classi) */
@@ -3120,14 +3127,21 @@ function renderHome() {
             <span class="home-acc-cap">$${r.cap.toFixed(0)}</span>
           </button>`).join('')}
       </div>
-      <div class="home-kicker">P&amp;L del mese</div>
-      <div class="panel">
-        ${accs.map(r => `
-          <div class="home-pnl-row">
-            <span class="home-pnl-name">${escapeHtml(r.a.name)}</span>
-            <span class="home-pnl-cap">${r.count} trade</span>
-            <span class="home-pnl-val ${valCls(r.pnl)}">${r.count > 0 ? fmt$(r.pnl) : '—'}</span>
-          </div>`).join('')}
+      <div class="home-bottom">
+        <div class="home-kicker">P&amp;L del mese</div>
+        <div class="panel">
+          ${accs.map(r => {
+            const roi = r.a.capital > 0 ? (r.pnl / r.a.capital) * 100 : 0;
+            const roiTxt = `${roi > 0 ? '+' : roi < 0 ? '−' : ''}${Math.abs(roi).toFixed(1)}%`;
+            return `
+            <div class="home-pnl-row">
+              <span class="home-pnl-name">${escapeHtml(r.a.name)}</span>
+              <span class="home-pnl-cap">${r.count} trade</span>
+              <span class="home-pnl-val ${valCls(r.pnl)}">${r.count > 0 ? fmt$(r.pnl) : '—'}</span>
+              <span class="home-pnl-roi ${valCls(r.pnl)}">${r.count > 0 ? roiTxt : ''}</span>
+            </div>`;
+          }).join('')}
+        </div>
       </div>
     </div>
   `;
