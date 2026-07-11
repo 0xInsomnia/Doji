@@ -680,7 +680,7 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
   position: absolute; inset: 0;
   display: flex; align-items: flex-end; justify-content: center;
   padding-bottom: 4vh;
-  color: var(--text); opacity: 0.035;
+  color: var(--text); opacity: 0.05;
   pointer-events: none; z-index: 0;
 }
 .home-inner { position: relative; z-index: 1; }
@@ -3083,8 +3083,25 @@ function renderHome() {
       <rect x="5" y="7.5" width="14" height="5.5" rx="0.5" fill="currentColor"/>
     </svg>`;
 
+  // Watermark: replica dell'icona dell'app (quadrante con tacche + candela doji)
+  const iconSvg = (size) => {
+    let ticks = '';
+    for (let i = 0; i < 24; i++) {
+      const ang = (i / 24) * Math.PI * 2;
+      const x1 = 50 + Math.cos(ang) * 40, y1 = 50 + Math.sin(ang) * 40;
+      const x2 = 50 + Math.cos(ang) * 36.5, y2 = 50 + Math.sin(ang) * 36.5;
+      ticks += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="currentColor" stroke-width="1.1"/>`;
+    }
+    return `<svg viewBox="0 0 100 100" width="${size}" height="${size}" aria-hidden="true">
+      <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" stroke-width="2.5"/>
+      ${ticks}
+      <line x1="50" y1="19" x2="50" y2="73" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+      <rect x="38" y="29.5" width="24" height="8.5" rx="0.5" fill="currentColor"/>
+    </svg>`;
+  };
+
   box.innerHTML = `
-    <div class="home-watermark">${dojiSvg(380)}</div>
+    <div class="home-watermark">${iconSvg(340)}</div>
     <div class="home-inner">
       ${tiltHtml}
       <div class="home-kicker">Nuovo trade su</div>
