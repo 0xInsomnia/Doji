@@ -1124,7 +1124,13 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
 <nav class="bottom-nav" id="bottom-nav">
   <button class="bottom-nav-item active" data-view="history"><span class="bottom-nav-icon">≡</span><span>Storico</span></button>
   <button class="bottom-nav-item" data-view="stats"><span class="bottom-nav-icon">Σ</span><span>Stats</span></button>
-  <button class="bottom-nav-fab" id="nav-fab" data-view="log" aria-label="Nuovo trade">+</button>
+  <button class="bottom-nav-fab" id="nav-fab" data-view="log" aria-label="Nuovo trade">
+    <!-- Candela doji: il logo dell'app (cerchio = il FAB stesso) -->
+    <svg viewBox="0 0 24 24" width="23" height="23" aria-hidden="true">
+      <line x1="12" y1="3.5" x2="12" y2="20.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+      <rect x="5.5" y="8.5" width="13" height="5" rx="0.5" fill="currentColor"/>
+    </svg>
+  </button>
   <button class="bottom-nav-item" data-view="monthly"><span class="bottom-nav-icon">◧</span><span>Mese</span></button>
   <button class="bottom-nav-item" data-view="settings"><span class="bottom-nav-icon">⚙</span><span>Imposta</span></button>
 </nav>
