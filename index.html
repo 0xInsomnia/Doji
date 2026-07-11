@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon" href="./icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Cormorant+Garamond:ital,wght@0,400;0,700;1,400;1,700&family=VT323&family=Bungee&family=Archivo+Black&family=Space+Grotesk:wght@400;500;700&family=Shippori+Mincho:wght@400;700&family=Caveat:wght@500;700&family=Poiret+One&family=Yuji+Syuku&family=Zen+Old+Mincho:wght@400;700&family=Kaisei+Decol:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Cormorant+Garamond:ital,wght@0,400;0,700;1,400;1,700&family=VT323&family=Bungee&family=Archivo+Black&family=Space+Grotesk:wght@400;500;700&family=Shippori+Mincho:wght@400;700&family=Caveat:wght@500;700&family=Poiret+One&family=Yuji+Syuku&family=Zen+Old+Mincho:wght@400;700&family=Kaisei+Decol:wght@400;700&family=Space+Mono:wght@400;700&family=Courier+Prime:wght@400;700&family=Cutive+Mono&display=swap" rel="stylesheet">
 <style>
 /* =========================================================
    CSS VARIABLES (impostate via JS al cambio tema)
@@ -398,7 +398,7 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
 }
 .trade-asset {
   color: var(--text); font-weight: 600;
-  font-size: 11px; font-family: var(--font-mono);
+  font-size: 12px; font-family: var(--font-main);
   min-width: 60px;
 }
 .trade-setup { color: var(--text-dim); flex: 1; font-size: 10px;
@@ -1298,8 +1298,8 @@ const themes = {
     text:'#3DFF73', textDim:'#1FA84B', textMuted:'#0F5C29',
     accent:'#3DFF73', win:'#3DFF73', loss:'#FFB000', neutral:'#0F5C29',
     onAccent:'#020802', onWin:'#020802', onLoss:'#1A0E00',
-    fontMain:"'IBM Plex Mono', monospace",
-    fontMono:"'IBM Plex Mono', monospace",
+    fontMain:"'VT323', monospace",
+    fontMono:"'VT323', monospace",
     fontDisplay:"'VT323', monospace",
     radius:'0px',
     radiusCard:'0px',
@@ -1316,7 +1316,7 @@ const themes = {
     accent:'#FF2E88', win:'#38D6FF', loss:'#A06BFF', neutral:'#5A4D8A',
     onAccent:'#1A0524', onWin:'#04222E', onLoss:'#180B2E',
     fontMain:"'Space Grotesk', 'Inter', sans-serif",
-    fontMono:"'JetBrains Mono', monospace",
+    fontMono:"'Space Mono', monospace",
     fontDisplay:"'Bungee', sans-serif",
     radius:'12px',
     radiusCard:'18px',
@@ -1349,7 +1349,7 @@ const themes = {
     text:'#2B2B28', textDim:'#6E6A5C', textMuted:'#A79F8A',
     accent:'#C93A2E', win:'#2B4C7E', loss:'#C93A2E', neutral:'#A79F8A',
     onAccent:'#F5F0E3', onWin:'#F5F0E3', onLoss:'#FFFFFF',
-    fontMain:"'Inter', sans-serif",
+    fontMain:"'Shippori Mincho', serif",
     fontMono:"'JetBrains Mono', monospace",
     fontDisplay:"'Shippori Mincho', serif",
     radius:'2px',
@@ -1366,8 +1366,8 @@ const themes = {
     text:'#23408F', textDim:'#5C74B5', textMuted:'#9FAECC',
     accent:'#23408F', win:'#1E7A34', loss:'#C22B21', neutral:'#9FAECC',
     onAccent:'#FDFCF2', onWin:'#FFFFFF', onLoss:'#FFFFFF',
-    fontMain:"'Inter', sans-serif",
-    fontMono:"'JetBrains Mono', monospace",
+    fontMain:"'Caveat', cursive",
+    fontMono:"'Cutive Mono', monospace",
     fontDisplay:"'Caveat', cursive",
     radius:'6px',
     radiusCard:'10px',
@@ -1383,8 +1383,8 @@ const themes = {
     text:'#EFE6D0', textDim:'#A99F85', textMuted:'#5E5744',
     accent:'#C9A227', win:'#D4AF37', loss:'#B04A5A', neutral:'#5E5744',
     onAccent:'#12100C', onWin:'#12100C', onLoss:'#FFFFFF',
-    fontMain:"'Inter', sans-serif",
-    fontMono:"'JetBrains Mono', monospace",
+    fontMain:"'Cormorant Garamond', serif",
+    fontMono:"'Courier Prime', monospace",
     fontDisplay:"'Poiret One', sans-serif",
     radius:'0px',
     radiusCard:'2px',
@@ -1400,7 +1400,7 @@ const themes = {
     text:'#E9E4D4', textDim:'#A89F8C', textMuted:'#565F78',
     accent:'#E8B54D', win:'#E8B54D', loss:'#C93A2E', neutral:'#565F78',
     onAccent:'#1A1206', onWin:'#1A1206', onLoss:'#FFFFFF',
-    fontMain:"'Inter', sans-serif",
+    fontMain:"'Shippori Mincho', serif",
     fontMono:"'JetBrains Mono', monospace",
     fontDisplay:"'Yuji Syuku', serif",
     radius:'6px',
@@ -1417,7 +1417,7 @@ const themes = {
     text:'#EDE7DC', textDim:'#A89F92', textMuted:'#5E574C',
     accent:'#EDE7DC', win:'#EDE7DC', loss:'#C9A227', neutral:'#5E574C',
     onAccent:'#1C1A17', onWin:'#1C1A17', onLoss:'#1C1A17',
-    fontMain:"'Inter', sans-serif",
+    fontMain:"'Zen Old Mincho', serif",
     fontMono:"'JetBrains Mono', monospace",
     fontDisplay:"'Zen Old Mincho', serif",
     radius:'2px',
@@ -1434,7 +1434,7 @@ const themes = {
     text:'#3A3633', textDim:'#7A736C', textMuted:'#B0A8A0',
     accent:'#E38AA6', win:'#7BA05B', loss:'#8E4A63', neutral:'#B0A8A0',
     onAccent:'#3A0E1C', onWin:'#FFFFFF', onLoss:'#FFFFFF',
-    fontMain:"'Inter', sans-serif",
+    fontMain:"'Kaisei Decol', serif",
     fontMono:"'JetBrains Mono', monospace",
     fontDisplay:"'Kaisei Decol', serif",
     radius:'10px',
