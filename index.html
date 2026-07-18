@@ -1026,6 +1026,11 @@ body[data-theme="sakura"] .account-tab { border-radius: 999px; }
       <div class="chip-group" id="timeframe-chips"></div>
     </div>
 
+    <div class="field">
+      <span class="field-label">Data trade</span>
+      <input type="datetime-local" id="trade-date" class="input">
+    </div>
+
     <div class="field-row">
       <div class="field-col">
         <span class="field-label required">R/R pianificato *</span>
@@ -1218,6 +1223,12 @@ body[data-theme="sakura"] .account-tab { border-radius: 999px; }
     <div class="field">
       <span class="field-label">Sostituisci con</span>
       <select class="filter-select" id="bulk-new" style="width:100%;"></select>
+    </div>
+    <div class="field">
+      <span class="field-label">Solo dove campo… (opzionale)</span>
+      <select class="filter-select" id="bulk-cond-field" style="width:100%; margin-bottom:8px;"></select>
+      <span class="field-label">…ha valore</span>
+      <select class="filter-select" id="bulk-cond-val" style="width:100%;"></select>
     </div>
     <div id="bulk-preview" style="font-size:13px; color:var(--text-dim); margin:8px 4px;"></div>
     <button class="btn-primary" id="bulk-apply-btn">Applica</button>
@@ -1589,12 +1600,12 @@ const state = {
   config: { ...DEFAULT_CONFIG },
   view: 'home', // vista di apertura: la Home (logo, tasti rapidi account, P&L)
   form: makeEmptyForm(),
-  filters: { dateRange: 'all', asset: 'all', setup: 'all', tag: 'all', direction: 'all' },
+  filters: { dateRange: 'all', asset: 'all', setup: 'all', tag: 'all', direction: 'all', context: 'all', timeframe: 'all' },
   editingId: null,
   detailId: null,
   navStack: [],
   logLimit: 15,
-  bulk: { field: 'setup', oldVal: '', newVal: '', filterField: 'setup', filterVal: '' },
+  bulk: { field: 'setup', oldVal: '', newVal: '', condField: '', condVal: '', filterField: 'setup', filterVal: '' },
   adjFormAcc: null, // account con il form rettifica aperto in Impostazioni
   monthly: null, // { y, m } mese visualizzato nella scheda Mese (null = mese corrente)
   loading: true,
@@ -1623,7 +1634,14 @@ function makeEmptyForm() {
     rr_actual: '',
     tags: [],
     note: '',
+    trade_date: '', // valore datetime-local (ora locale, precisione al minuto)
   };
+}
+
+// datetime-local ⇄ Date: formato "YYYY-MM-DDTHH:MM" in ora locale
+function toDatetimeLocalValue(d) {
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
 // Deriva l'outcome da rr_actual e rr_planned (per trade legacy senza campo outcome)
@@ -2159,6 +2177,17 @@ async function addTrade() {
   // Deriva tp_respected / sl_respected per compatibilità
   const disc = deriveDiscipline(f.outcome, rr_actual);
 
+  // Data del trade: personalizzata dal campo "Data trade" o adesso.
+  // Rifiuta i giorni futuri (l'orario di oggi è libero).
+  let tradeDate = new Date();
+  if (f.trade_date) {
+    const d = new Date(f.trade_date);
+    if (isNaN(d.getTime())) { showToast('Data trade non valida', 'error'); return; }
+    const dayKey = x => x.getFullYear() * 10000 + (x.getMonth() + 1) * 100 + x.getDate();
+    if (dayKey(d) > dayKey(new Date())) { showToast('La data non può essere nel futuro', 'error'); return; }
+    tradeDate = d;
+  }
+
   // Se hai inserito il risultato $: deriva il rischio esatto (risk = |risultato| / |R|)
   // Altrimenti: usa rischio % × capitale (con eventuale capitale custom)
   let finalRiskAmount, finalCapitalUsed;
@@ -2189,8 +2218,15 @@ async function addTrade() {
       existing.capital_used = finalCapitalUsed;
       existing.tags = [...f.tags];
       existing.note = f.note.trim();
+      // Data: aggiorna iso/ts SOLO se l'utente l'ha davvero cambiata
+      // (così i secondi originali non si perdono se il campo è rimasto intatto)
+      if (f.trade_date && toDatetimeLocalValue(new Date(existing.iso)) !== f.trade_date) {
+        existing.iso = tradeDate.toISOString();
+        existing.ts = tradeDate.toLocaleDateString('it-IT');
+      }
       try {
         await dbPut(TRADES_STORE, existing);
+        await renumberTrades();
         state.editingId = null;
         resetForm();
         showToast('✓ Trade modificato', 'success');
@@ -2226,13 +2262,14 @@ async function addTrade() {
     capital_used: finalCapitalUsed,
     tags: [...f.tags],
     note: f.note.trim(),
-    ts: new Date().toLocaleDateString('it-IT'),
-    iso: new Date().toISOString(),
+    ts: tradeDate.toLocaleDateString('it-IT'),
+    iso: tradeDate.toISOString(),
   };
 
   try {
     await dbPut(TRADES_STORE, trade);
     state.trades.push(trade);
+    await renumberTrades();
     resetForm();
     showToast('✓ Trade salvato', 'success');
     render();
@@ -2240,6 +2277,21 @@ async function addTrade() {
     showToast('Errore salvataggio', 'error');
     console.error(e);
   }
+}
+
+// Rinumera i trade di ogni conto in ordine cronologico: serve quando un
+// trade viene creato/modificato con data personalizzata (stessa logica di deleteTrade)
+async function renumberTrades() {
+  const groups = {};
+  state.trades.forEach(t => {
+    groups[t.account_id] = groups[t.account_id] || [];
+    groups[t.account_id].push(t);
+  });
+  Object.values(groups).forEach(arr => {
+    arr.sort((a, b) => a.iso.localeCompare(b.iso));
+    arr.forEach((t, i) => { t.n = i + 1; });
+  });
+  await dbBulkPut(TRADES_STORE, state.trades);
 }
 
 function startEdit(id) {
@@ -2254,6 +2306,7 @@ function startEdit(id) {
   // Se il trade ha risk_amount esplicito → fu salvato dal lato $
   const hadDollar = t.risk_amount != null;
   const resultDollar = hadDollar ? String(Math.abs(t.rr_actual * t.risk_amount)) : '';
+  const tradeDateVal = toDatetimeLocalValue(new Date(t.iso));
   state.form = {
     direction: t.direction,
     asset: t.asset,
@@ -2272,6 +2325,7 @@ function startEdit(id) {
     rr_actual: rrInput,
     tags: [...(t.tags || [])],
     note: t.note || '',
+    trade_date: tradeDateVal,
   };
   // Popola UI
   document.getElementById('rr-planned').value = state.form.rr_planned;
@@ -2280,6 +2334,7 @@ function startEdit(id) {
   document.getElementById('risk-amt').value = state.form.capital_used;
   document.getElementById('result-dollar').value = resultDollar;
   document.getElementById('note').value = state.form.note;
+  document.getElementById('trade-date').value = tradeDateVal;
   if (state.form.capital_used !== '') {
     document.getElementById('risk-amt').classList.remove('hidden');
     document.getElementById('risk-amt-hint').classList.remove('hidden');
@@ -2374,6 +2429,8 @@ function resetForm() {
   state.form = makeEmptyForm();
   state.form.asset = state.config.assets[0] || '';
   state.form.risk_pct = String(acc.risk_pct);
+  state.form.trade_date = toDatetimeLocalValue(new Date());
+  document.getElementById('trade-date').value = state.form.trade_date;
   document.getElementById('rr-planned').value = '';
   document.getElementById('rr-actual').value = '';
   document.getElementById('risk-pct').value = String(acc.risk_pct);
@@ -2502,6 +2559,9 @@ function filteredTrades() {
   if (f.direction !== 'all') arr = arr.filter(t => t.direction === f.direction);
   if (f.setup !== 'all') arr = arr.filter(t => t.setup === f.setup);
   if (f.tag !== 'all') arr = arr.filter(t => (t.tags || []).includes(f.tag));
+  // '__EMPTY__' = trade senza il campo (null o stringa vuota)
+  if (f.context !== 'all') arr = arr.filter(t => f.context === '__EMPTY__' ? !t.context : t.context === f.context);
+  if (f.timeframe !== 'all') arr = arr.filter(t => f.timeframe === '__EMPTY__' ? !t.timeframe : t.timeframe === f.timeframe);
   if (f.dateRange !== 'all') {
     const now = Date.now();
     const days = f.dateRange === '30' ? 30 : f.dateRange === '90' ? 90 : 0;
@@ -3243,18 +3303,29 @@ function bulkDisplay(field, v) {
   if (field === 'direction') return v === 'long' ? 'Long' : v === 'short' ? 'Short' : v;
   return v;
 }
-function bulkCount(field, oldVal) {
+// Seconda condizione opzionale (AND) della bulk edit: il trade deve avere
+// ANCHE condField = condVal (per i tag: il tag presente nell'array)
+function bulkMatchesCond(t, condField, condVal) {
+  if (!condField || !condVal) return true;
+  if (condField === 'tag') return (t.tags || []).includes(condVal);
+  const v = (t[condField] == null || t[condField] === '') ? '__EMPTY__' : t[condField];
+  return v === condVal;
+}
+
+function bulkCount(field, oldVal, condField, condVal) {
   if (!oldVal) return 0;
   let n = 0;
   state.trades.forEach(t => {
+    if (!bulkMatchesCond(t, condField, condVal)) return;
     if (field === 'tag') { if ((t.tags || []).includes(oldVal)) n++; }
     else { const v = (t[field] == null || t[field] === '') ? '__EMPTY__' : t[field]; if (v === oldVal) n++; }
   });
   return n;
 }
-async function bulkApplyReplace(field, oldVal, newVal) {
+async function bulkApplyReplace(field, oldVal, newVal, condField, condVal) {
   let n = 0;
   for (const t of state.trades) {
+    if (!bulkMatchesCond(t, condField, condVal)) continue;
     if (field === 'tag') {
       const tags = t.tags || [];
       if (tags.includes(oldVal)) {
@@ -3300,25 +3371,48 @@ function renderBulk() {
   newSel.innerHTML = optEl('', '— scegli —', !b.newVal) + newOpts.join('');
   newSel.onchange = e => { b.newVal = e.target.value; render(); };
 
-  // anteprima
+  // Condizione extra opzionale (AND): "solo dove campo X = valore Y"
+  const cfSel = document.getElementById('bulk-cond-field');
+  cfSel.innerHTML = optEl('', '— nessun filtro —', !b.condField)
+    + BULK_FIELDS.map(f2 => optEl(f2.key, f2.label, f2.key === b.condField)).join('');
+  cfSel.onchange = e => { b.condField = e.target.value; b.condVal = ''; render(); };
+  const cvSel = document.getElementById('bulk-cond-val');
+  if (b.condField) {
+    const cVals = bulkValuesInTrades(b.condField);
+    cvSel.innerHTML = optEl('', '— scegli —', !b.condVal)
+      + cVals.map(v => optEl(v, bulkDisplay(b.condField, v), v === b.condVal)).join('');
+    cvSel.disabled = false;
+  } else {
+    cvSel.innerHTML = optEl('', '—', true);
+    cvSel.disabled = true;
+  }
+  cvSel.onchange = e => { b.condVal = e.target.value; render(); };
+
+  // anteprima (rispetta la condizione extra quando attiva)
+  const condActive = b.condField && b.condVal;
+  const condLabel = condActive
+    ? `${bulkFieldDef(b.condField).label} = ${bulkDisplay(b.condField, b.condVal)}`
+    : '';
   const prev = document.getElementById('bulk-preview');
-  const n = bulkCount(b.field, b.oldVal);
+  const n = bulkCount(b.field, b.oldVal, b.condField, b.condVal);
   if (!b.oldVal || !b.newVal) {
     prev.textContent = 'Scegli valore da cercare e sostituto.';
   } else if (n === 0) {
-    prev.textContent = 'Nessun trade con questo valore.';
+    prev.textContent = condActive ? 'Nessun trade con questa combinazione.' : 'Nessun trade con questo valore.';
   } else {
-    prev.innerHTML = `<b>${n}</b> trade verranno cambiati: <b>${escapeHtml(bulkDisplay(b.field, b.oldVal))}</b> → <b>${escapeHtml(bulkDisplay(b.field, b.newVal))}</b>`;
+    prev.innerHTML = `<b>${n}</b> trade verranno cambiati: <b>${escapeHtml(bulkDisplay(b.field, b.oldVal))}</b> → <b>${escapeHtml(bulkDisplay(b.field, b.newVal))}</b>`
+      + (condActive ? `, solo dove <b>${escapeHtml(condLabel)}</b>` : '');
   }
   const applyBtn = document.getElementById('bulk-apply-btn');
   applyBtn.disabled = !(b.oldVal && b.newVal && n > 0);
   applyBtn.style.opacity = applyBtn.disabled ? '0.45' : '1';
   applyBtn.onclick = async () => {
     if (b.oldVal === b.newVal) { showToast('Valori uguali', 'error'); return; }
-    if (!confirm(`Cambiare ${n} trade?\n\n${bulkDisplay(b.field, b.oldVal)} → ${bulkDisplay(b.field, b.newVal)}\n\nSu tutti i conti.`)) return;
-    const done = await bulkApplyReplace(b.field, b.oldVal, b.newVal);
+    const condTxt = condActive ? `\nSolo dove ${condLabel}.` : '';
+    if (!confirm(`Cambiare ${n} trade?\n\n${bulkDisplay(b.field, b.oldVal)} → ${bulkDisplay(b.field, b.newVal)}${condTxt}\n\nSu tutti i conti.`)) return;
+    const done = await bulkApplyReplace(b.field, b.oldVal, b.newVal, b.condField, b.condVal);
     showToast(`✓ ${done} trade aggiornati`, 'success');
-    b.oldVal = ''; b.newVal = '';
+    b.oldVal = ''; b.newVal = ''; b.condField = ''; b.condVal = '';
     render();
   };
 
@@ -3604,7 +3698,7 @@ function renderStats() {
   const roiSign = s.roi >= 0 ? '+' : '';
 
   const f0 = state.filters;
-  const filtersActive = f0.dateRange !== 'all' || f0.asset !== 'all' || f0.setup !== 'all' || f0.tag !== 'all';
+  const filtersActive = f0.dateRange !== 'all' || f0.asset !== 'all' || f0.setup !== 'all' || f0.tag !== 'all' || f0.context !== 'all' || f0.timeframe !== 'all';
   const eqTitle = filtersActive
     ? 'Equity curve — solo trade filtrati (curva ipotetica)'
     : `Equity curve (capitale $${acc.capital.toFixed(0)})`;
@@ -3984,12 +4078,24 @@ function renderFilters() {
     <select class="filter-select" id="filter-tag">
       ${tags.map(t => `<option value="${escapeHtml(t)}"${f.tag===t?' selected':''}>${t==='all'?'Tutti i tag':escapeHtml(t)}</option>`).join('')}
     </select>
+    <select class="filter-select" id="filter-context">
+      <option value="all"${f.context==='all'?' selected':''}>Tutti i contesti</option>
+      ${(state.config.contexts || []).map(c => `<option value="${escapeHtml(c)}"${f.context===c?' selected':''}>${escapeHtml(c)}</option>`).join('')}
+      <option value="__EMPTY__"${f.context==='__EMPTY__'?' selected':''}>(vuoto)</option>
+    </select>
+    <select class="filter-select" id="filter-timeframe">
+      <option value="all"${f.timeframe==='all'?' selected':''}>Tutti i timeframe</option>
+      ${(state.config.timeframes || []).map(c => `<option value="${escapeHtml(c)}"${f.timeframe===c?' selected':''}>${escapeHtml(c)}</option>`).join('')}
+      <option value="__EMPTY__"${f.timeframe==='__EMPTY__'?' selected':''}>(vuoto)</option>
+    </select>
   `;
   document.getElementById('filter-date').onchange = e => { state.filters.dateRange = e.target.value; renderStats(); };
   document.getElementById('filter-direction').onchange = e => { state.filters.direction = e.target.value; renderStats(); };
   document.getElementById('filter-asset').onchange = e => { state.filters.asset = e.target.value; renderStats(); };
   document.getElementById('filter-setup').onchange = e => { state.filters.setup = e.target.value; renderStats(); };
   document.getElementById('filter-tag').onchange = e => { state.filters.tag = e.target.value; renderStats(); };
+  document.getElementById('filter-context').onchange = e => { state.filters.context = e.target.value; renderStats(); };
+  document.getElementById('filter-timeframe').onchange = e => { state.filters.timeframe = e.target.value; renderStats(); };
 }
 
 // ============================================================
@@ -4397,6 +4503,11 @@ function bindEvents() {
     if (wasHidden) ta.focus();
   };
   document.getElementById('note').oninput = e => { state.form.note = e.target.value; };
+  // Data trade: prefill "adesso" all'avvio, poi segue l'input
+  const tradeDateEl = document.getElementById('trade-date');
+  state.form.trade_date = toDatetimeLocalValue(new Date());
+  tradeDateEl.value = state.form.trade_date;
+  tradeDateEl.oninput = e => { state.form.trade_date = e.target.value; };
 
   // Risk amount ($)
   document.getElementById('risk-amt-toggle').onclick = () => {
