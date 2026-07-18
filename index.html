@@ -487,6 +487,19 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
   display: flex; gap: 8px; flex-wrap: wrap;
   margin-bottom: 14px;
 }
+.history-summary {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; margin: 0 4px 10px;
+  font-family: var(--font-mono); font-size: 11px; color: var(--text-muted);
+}
+.history-summary b { color: var(--text); }
+.history-reset {
+  background: none; border: 1px solid var(--border-subtle);
+  border-radius: var(--radius); cursor: pointer;
+  font-family: var(--font-mono); font-size: 10px; color: var(--text-dim);
+  padding: 4px 10px; letter-spacing: 0.03em;
+}
+.history-reset:active { background: var(--surface-alt); }
 .filter-select {
   background: var(--surface-alt);
   border: 1px solid var(--border-subtle);
@@ -1092,7 +1105,8 @@ body[data-theme="sakura"] .account-tab { border-radius: 999px; }
 
 <!-- ================ HISTORY VIEW (Storico) ================ -->
 <div id="history-view" class="hidden">
-  <div class="panel-title" style="margin-top: 4px; margin-bottom: 8px; padding: 0 4px;">Storico trade</div>
+  <div class="filter-bar" id="history-filters"></div>
+  <div class="history-summary" id="history-summary"></div>
   <div id="trades-list"></div>
 </div>
 
@@ -3225,14 +3239,34 @@ function renderHome() {
 }
 
 function renderHistory() {
+  // Filtri (condivisi con le Stats)
+  renderFilters('history-filters');
+
   const list = document.getElementById('trades-list');
-  const trades = tradesForCurrentAccount();
-  const adjs = adjustmentsForAccount(state.config.current_account_id);
+  const summary = document.getElementById('history-summary');
+  const nFilters = activeFilterCount();
+  const trades = filteredTrades(); // rispetta i filtri attivi
+  const totalTrades = tradesForCurrentAccount().length;
+  // Le rettifiche compaiono solo senza filtri (non hanno setup/contesto/ecc.)
+  const adjs = nFilters === 0 ? adjustmentsForAccount(state.config.current_account_id) : [];
+
+  // Riepilogo: conteggio + link azzera quando filtrato
+  if (totalTrades === 0 && adjs.length === 0) {
+    summary.innerHTML = '';
+  } else if (nFilters > 0) {
+    summary.innerHTML = `<span><b>${trades.length}</b> di ${totalTrades} trade</span>`
+      + `<button class="history-reset" id="history-reset">✕ azzera filtri</button>`;
+  } else {
+    summary.innerHTML = `<span><b>${totalTrades}</b> trade</span>`;
+  }
+  const resetBtn = document.getElementById('history-reset');
+  if (resetBtn) resetBtn.onclick = () => { resetFilters(); render(); };
+
   if (trades.length === 0 && adjs.length === 0) {
-    list.innerHTML = '<div class="empty">' + (state.loading ? '…' : 'nessun trade ancora') + '</div>';
+    list.innerHTML = '<div class="empty">' + (state.loading ? '…' : (nFilters > 0 ? 'nessun trade con i filtri correnti' : 'nessun trade ancora')) + '</div>';
     return;
   }
-  // Timeline unica (trade + rettifiche), più recente in cima
+  // Timeline unica (trade filtrati + rettifiche), più recente in cima
   const items = [
     ...trades.map(t => ({ iso: t.iso || '', trade: t })),
     ...adjs.map(a => ({ iso: a.iso || '', adj: a })),
@@ -3496,7 +3530,11 @@ function renderGroup() {
   const labelMap = { context: 'Contesto', setup: 'Setup', tag: 'Tag', asset: 'Asset', timeframe: 'Timeframe', direction: 'Direzione', day: 'Giorno' };
   const isEmpty = (val === '—');
 
-  const matches = tradesForCurrentAccount().filter(t => {
+  // I breakdown delle Stats partono dai trade FILTRATI (così "Setup: X" con
+  // filtro Contesto=Chop mostra solo gli X&Chop, non tutti gli X). Il
+  // calendario Mese (dim='day') usa invece tutti i trade del conto.
+  const base = dim === 'day' ? tradesForCurrentAccount() : filteredTrades();
+  const matches = base.filter(t => {
     if (dim === 'day') {
       // val = 'YYYY-MM-DD' (giorno locale, dal calendario della scheda Mese)
       const [yy, mm, dd] = val.split('-').map(Number);
@@ -3681,8 +3719,8 @@ function renderDetail() {
 
 
 function renderStats() {
-  // Filtri
-  renderFilters();
+  // Filtri (condivisi con lo Storico via state.filters)
+  renderFilters('stats-filters');
 
   const arr = filteredTrades();
   const container = document.getElementById('stats-content');
@@ -4052,50 +4090,73 @@ function renderInsights(s, byAsset, bySetup, byTag, byContext, byTimeframe, arr)
   `;
 }
 
-function renderFilters() {
-  const box = document.getElementById('stats-filters');
+// Quanti filtri sono attivi (diversi da 'all'); utile per UI e per decidere
+// se mostrare le rettifiche nello Storico
+function activeFilterCount() {
   const f = state.filters;
+  let n = 0;
+  if (f.dateRange !== 'all') n++;
+  if (f.direction !== 'all') n++;
+  if (f.asset !== 'all') n++;
+  if (f.setup !== 'all') n++;
+  if (f.tag !== 'all') n++;
+  if (f.context !== 'all') n++;
+  if (f.timeframe !== 'all') n++;
+  return n;
+}
+function resetFilters() {
+  state.filters = { dateRange: 'all', asset: 'all', setup: 'all', tag: 'all', direction: 'all', context: 'all', timeframe: 'all' };
+}
+
+// Barra filtri riusabile: la stessa in Storico e Stats, condivisa via
+// state.filters. `boxId` = contenitore; i change ridisegnano la vista corrente.
+function renderFilters(boxId) {
+  const box = document.getElementById(boxId);
+  if (!box) return;
+  const f = state.filters;
+  const p = boxId + '-'; // prefisso per id univoci tra le due barre
   const assets = ['all', ...state.config.assets];
   const setups = ['all', ...state.config.setups];
   const tags = ['all', ...state.config.tags, ...(state.config.error_tags || [])];
   box.innerHTML = `
-    <select class="filter-select" id="filter-date">
+    <select class="filter-select" id="${p}date">
       <option value="all"${f.dateRange==='all'?' selected':''}>Tutte le date</option>
       <option value="30"${f.dateRange==='30'?' selected':''}>Ultimi 30g</option>
       <option value="90"${f.dateRange==='90'?' selected':''}>Ultimi 90g</option>
     </select>
-    <select class="filter-select" id="filter-direction">
+    <select class="filter-select" id="${p}direction">
       <option value="all"${f.direction==='all'?' selected':''}>Long + Short</option>
       <option value="long"${f.direction==='long'?' selected':''}>Solo Long</option>
       <option value="short"${f.direction==='short'?' selected':''}>Solo Short</option>
     </select>
-    <select class="filter-select" id="filter-asset">
+    <select class="filter-select" id="${p}asset">
       ${assets.map(a => `<option value="${escapeHtml(a)}"${f.asset===a?' selected':''}>${a==='all'?'Tutti gli asset':escapeHtml(a)}</option>`).join('')}
     </select>
-    <select class="filter-select" id="filter-setup">
+    <select class="filter-select" id="${p}setup">
       ${setups.map(s => `<option value="${escapeHtml(s)}"${f.setup===s?' selected':''}>${s==='all'?'Tutti i setup':escapeHtml(s)}</option>`).join('')}
     </select>
-    <select class="filter-select" id="filter-tag">
+    <select class="filter-select" id="${p}tag">
       ${tags.map(t => `<option value="${escapeHtml(t)}"${f.tag===t?' selected':''}>${t==='all'?'Tutti i tag':escapeHtml(t)}</option>`).join('')}
     </select>
-    <select class="filter-select" id="filter-context">
+    <select class="filter-select" id="${p}context">
       <option value="all"${f.context==='all'?' selected':''}>Tutti i contesti</option>
       ${(state.config.contexts || []).map(c => `<option value="${escapeHtml(c)}"${f.context===c?' selected':''}>${escapeHtml(c)}</option>`).join('')}
       <option value="__EMPTY__"${f.context==='__EMPTY__'?' selected':''}>(vuoto)</option>
     </select>
-    <select class="filter-select" id="filter-timeframe">
+    <select class="filter-select" id="${p}timeframe">
       <option value="all"${f.timeframe==='all'?' selected':''}>Tutti i timeframe</option>
       ${(state.config.timeframes || []).map(c => `<option value="${escapeHtml(c)}"${f.timeframe===c?' selected':''}>${escapeHtml(c)}</option>`).join('')}
       <option value="__EMPTY__"${f.timeframe==='__EMPTY__'?' selected':''}>(vuoto)</option>
     </select>
   `;
-  document.getElementById('filter-date').onchange = e => { state.filters.dateRange = e.target.value; renderStats(); };
-  document.getElementById('filter-direction').onchange = e => { state.filters.direction = e.target.value; renderStats(); };
-  document.getElementById('filter-asset').onchange = e => { state.filters.asset = e.target.value; renderStats(); };
-  document.getElementById('filter-setup').onchange = e => { state.filters.setup = e.target.value; renderStats(); };
-  document.getElementById('filter-tag').onchange = e => { state.filters.tag = e.target.value; renderStats(); };
-  document.getElementById('filter-context').onchange = e => { state.filters.context = e.target.value; renderStats(); };
-  document.getElementById('filter-timeframe').onchange = e => { state.filters.timeframe = e.target.value; renderStats(); };
+  const upd = (key, val) => { state.filters[key] = val; render(); };
+  document.getElementById(p+'date').onchange = e => upd('dateRange', e.target.value);
+  document.getElementById(p+'direction').onchange = e => upd('direction', e.target.value);
+  document.getElementById(p+'asset').onchange = e => upd('asset', e.target.value);
+  document.getElementById(p+'setup').onchange = e => upd('setup', e.target.value);
+  document.getElementById(p+'tag').onchange = e => upd('tag', e.target.value);
+  document.getElementById(p+'context').onchange = e => upd('context', e.target.value);
+  document.getElementById(p+'timeframe').onchange = e => upd('timeframe', e.target.value);
 }
 
 // ============================================================
