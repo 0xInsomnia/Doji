@@ -533,6 +533,16 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
 }
 
 /* Insight: righe compatte, titolo secco + un dato */
+.insight-head {
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  margin: 12px 2px 6px; font-weight: 700;
+}
+.insight-head:first-of-type { margin-top: 4px; }
+.insight-head.good { color: var(--win); }
+[data-mono="true"] .insight-head.good { color: var(--text); }
+.insight-head.alert { color: var(--text); }
+.insight-head.muted { color: var(--text-muted); }
 .insight-item {
   padding: 7px 10px;
   margin-bottom: 4px;
@@ -541,8 +551,9 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
   border-radius: 0 var(--radius) var(--radius) 0;
   font-size: 11px; color: var(--text); line-height: 1.5;
 }
-.insight-item.positive { border-left-style: dashed; color: var(--text-dim); }
-.insight-item.note { border-left-style: dotted; border-left-color: var(--text-muted); color: var(--text-dim); font-style: italic; }
+.insight-group.good .insight-item { border-left-color: var(--win); }
+[data-mono="true"] .insight-group.good .insight-item { border-left-color: var(--text); }
+.insight-group.muted .insight-item { border-left-style: dotted; border-left-color: var(--text-muted); color: var(--text-dim); font-style: italic; }
 
 /* =========================================================
    SETTINGS
@@ -1614,7 +1625,8 @@ const state = {
   config: { ...DEFAULT_CONFIG },
   view: 'home', // vista di apertura: la Home (logo, tasti rapidi account, P&L)
   form: makeEmptyForm(),
-  filters: { dateRange: 'all', asset: 'all', setup: 'all', tag: 'all', direction: 'all', context: 'all', timeframe: 'all' },
+  filters: { dateRange: 'all', asset: 'all', setup: 'all', tag: 'all', direction: 'all', context: 'all', timeframe: 'all' }, // filtri delle Stats
+  historyFilter: { dateRange: 'all' }, // filtro dello Storico (indipendente): solo periodo
   editingId: null,
   detailId: null,
   navStack: [],
@@ -3238,32 +3250,54 @@ function renderHome() {
   });
 }
 
+// Trade dello Storico filtrati per periodo (filtro indipendente dalle Stats)
+function historyFilteredTrades() {
+  let arr = tradesForCurrentAccount();
+  const r = state.historyFilter.dateRange;
+  if (r !== 'all') {
+    const days = r === '30' ? 30 : r === '90' ? 90 : 0;
+    if (days > 0) {
+      const cutoff = Date.now() - days * 86400000;
+      arr = arr.filter(t => new Date(t.iso).getTime() >= cutoff);
+    }
+  }
+  return arr;
+}
+
 function renderHistory() {
-  // Filtri (condivisi con le Stats)
-  renderFilters('history-filters');
+  // Storico: unico filtro "periodo", indipendente dalle Stats
+  const fbar = document.getElementById('history-filters');
+  const hr = state.historyFilter.dateRange;
+  fbar.innerHTML = `
+    <select class="filter-select" id="history-date" style="flex:1;">
+      <option value="all"${hr==='all'?' selected':''}>Tutte le date</option>
+      <option value="30"${hr==='30'?' selected':''}>Ultimi 30 giorni</option>
+      <option value="90"${hr==='90'?' selected':''}>Ultimi 90 giorni</option>
+    </select>`;
+  document.getElementById('history-date').onchange = e => { state.historyFilter.dateRange = e.target.value; render(); };
 
   const list = document.getElementById('trades-list');
   const summary = document.getElementById('history-summary');
-  const nFilters = activeFilterCount();
-  const trades = filteredTrades(); // rispetta i filtri attivi
+  const filtered = hr !== 'all';
+  const trades = historyFilteredTrades();
   const totalTrades = tradesForCurrentAccount().length;
-  // Le rettifiche compaiono solo senza filtri (non hanno setup/contesto/ecc.)
-  const adjs = nFilters === 0 ? adjustmentsForAccount(state.config.current_account_id) : [];
+  // Le rettifiche compaiono solo senza filtro periodo
+  const adjs = !filtered ? adjustmentsForAccount(state.config.current_account_id) : [];
 
   // Riepilogo: conteggio + link azzera quando filtrato
   if (totalTrades === 0 && adjs.length === 0) {
     summary.innerHTML = '';
-  } else if (nFilters > 0) {
+  } else if (filtered) {
     summary.innerHTML = `<span><b>${trades.length}</b> di ${totalTrades} trade</span>`
-      + `<button class="history-reset" id="history-reset">✕ azzera filtri</button>`;
+      + `<button class="history-reset" id="history-reset">✕ azzera</button>`;
   } else {
     summary.innerHTML = `<span><b>${totalTrades}</b> trade</span>`;
   }
   const resetBtn = document.getElementById('history-reset');
-  if (resetBtn) resetBtn.onclick = () => { resetFilters(); render(); };
+  if (resetBtn) resetBtn.onclick = () => { state.historyFilter.dateRange = 'all'; render(); };
 
   if (trades.length === 0 && adjs.length === 0) {
-    list.innerHTML = '<div class="empty">' + (state.loading ? '…' : (nFilters > 0 ? 'nessun trade con i filtri correnti' : 'nessun trade ancora')) + '</div>';
+    list.innerHTML = '<div class="empty">' + (state.loading ? '…' : (filtered ? 'nessun trade nel periodo' : 'nessun trade ancora')) + '</div>';
     return;
   }
   // Timeline unica (trade filtrati + rettifiche), più recente in cima
@@ -4034,7 +4068,46 @@ function renderInsights(s, byAsset, bySetup, byTag, byContext, byTimeframe, arr)
     if (bestD && (!worstD || bestD.d !== worstD.d)) add(goods, `Il tuo giorno è ${days[bestD.d]}`, `${fmtR(bestD.exp)} a trade su ${bestD.n} trade.`);
   }
 
-  // --- POSITIVI: dove hai edge ---
+  // --- PUNTI DI FORZA: dove funzioni (speculari alle criticità) ---
+  // Sistema complessivamente in utile
+  if (s.total >= 15 && s.expectancy > 0.2 && (s.profitFactor >= 1.5 || !isFinite(s.profitFactor))) {
+    add(goods, 'Sistema in utile', `expectancy ${fmtR(s.expectancy)}, profit factor ${isFinite(s.profitFactor) ? s.profitFactor.toFixed(2) : '∞'} su ${s.total} trade.`);
+  }
+  // Win rate solido
+  if (s.total >= 10 && s.winRate >= 0.55) {
+    add(goods, 'Win rate solido', `${pct(s.winRate)} di operazioni in profitto su ${s.total} trade.`);
+  }
+  // Vincite più pesanti delle perdite (speculare a "perdite più pesanti")
+  if (s.total >= 10 && s.avgLoss > 0 && s.avgWin > 0 && s.avgWin / s.avgLoss >= 1.3) {
+    add(goods, 'Le vincite pesano più delle perdite', `vincita media ${fmtR(s.avgWin)}, perdita media −${s.avgLoss.toFixed(2)}R: rapporto sano.`);
+  }
+  // Porti i vincenti a target (speculare a "chiusure anticipate")
+  if (s.wins >= 4 && s.captureRatio >= 0.9) {
+    add(goods, 'Porti i vincenti a target', `catturi il ${pct(s.captureRatio)} del target pianificato sui vincenti.`);
+  }
+  // Uscite disciplinate
+  if (s.total >= 5 && s.tpResp != null && s.tpResp >= 0.8 && s.slResp != null && s.slResp >= 0.9) {
+    add(goods, 'Uscite disciplinate', `TP pieno ${pct(s.tpResp)}, SL contenuto ${pct(s.slResp)}: prendi i target e tagli le perdite.`);
+  }
+  // Serie di vincite (speculare a "striscia di stop")
+  if (s.maxWinStreak >= 4) {
+    add(goods, `Serie di ${s.maxWinStreak} vincite di fila`, `sai capitalizzare i momenti buoni.`);
+  }
+  // Reagisci bene dopo uno stop (speculare a "revenge trading")
+  if (arr && arr.length >= 10) {
+    const chrono = arr.slice().sort((a, b) => a.iso.localeCompare(b.iso));
+    const after = [];
+    for (let i = 1; i < chrono.length; i++) {
+      if (chrono[i - 1].rr_actual < 0 && chrono[i].ts === chrono[i - 1].ts) after.push(chrono[i]);
+    }
+    if (after.length >= 4) {
+      const expAfter = after.reduce((a, t) => a + t.rr_actual, 0) / after.length;
+      if (expAfter > s.avgRRActual + 0.1 && expAfter > 0) {
+        add(goods, 'Reagisci bene dopo uno stop', `i trade dopo una perdita rendono ${fmtR(expAfter)}: niente revenge trading.`);
+      }
+    }
+  }
+  // Miglior setup / tag / timeframe / asset / contesto (dove hai edge)
   const bestSetup = bySetup.filter(b => b.stats && b.count >= 3).sort((a, b) => b.stats.expectancy - a.stats.expectancy)[0];
   if (bestSetup && bestSetup.stats.expectancy > 0.3) {
     add(goods, `Setup migliore: "${escapeHtml(bestSetup.key)}"`, `${fmtR(bestSetup.stats.expectancy)} su ${bestSetup.count} trade (WR ${pct(bestSetup.stats.winRate)}).`);
@@ -4047,11 +4120,13 @@ function renderInsights(s, byAsset, bySetup, byTag, byContext, byTimeframe, arr)
   if (bestTf && bestTf.stats.expectancy > 0.4) {
     add(goods, `Il tuo campo è il ${escapeHtml(bestTf.key)}`, `${fmtR(bestTf.stats.expectancy)} su ${bestTf.count} trade su quel timeframe.`);
   }
-  if (s.total >= 5 && s.tpResp != null && s.tpResp >= 0.8 && s.slResp != null && s.slResp >= 0.9) {
-    add(goods, 'Uscite disciplinate', `TP pieno ${pct(s.tpResp)}, SL contenuto ${pct(s.slResp)}: prendi i target e tagli le perdite.`);
+  const bestAsset = byAsset.filter(b => b.key !== '—' && b.stats && b.count >= 3).sort((a, b) => b.stats.expectancy - a.stats.expectancy)[0];
+  if (bestAsset && bestAsset.stats.expectancy > 0.3) {
+    add(goods, `${escapeHtml(bestAsset.key)} ti paga`, `${fmtR(bestAsset.stats.expectancy)} su ${bestAsset.count} trade su questa coppia.`);
   }
-  if (s.total >= 20 && s.expectancy > 0.2 && (s.profitFactor >= 1.5 || !isFinite(s.profitFactor))) {
-    add(goods, 'Sistema in utile', `expectancy ${fmtR(s.expectancy)}, profit factor ${isFinite(s.profitFactor) ? s.profitFactor.toFixed(2) : '∞'} su ${s.total} trade.`);
+  const bestCtx = (byContext || []).filter(b => b.key !== '—' && b.stats && b.count >= 3).sort((a, b) => b.stats.expectancy - a.stats.expectancy)[0];
+  if (bestCtx && bestCtx.stats.expectancy > 0.4) {
+    add(goods, `Vai forte in contesto ${escapeHtml(bestCtx.key)}`, `${fmtR(bestCtx.stats.expectancy)} su ${bestCtx.count} trade.`);
   }
 
   // --- NOTE: contesto e cautele ---
@@ -4076,18 +4151,16 @@ function renderInsights(s, byAsset, bySetup, byTag, byContext, byTimeframe, arr)
     add(notes, `Campione: ${s.total} trade`, `sotto i ~30 le medie ballano, tratta tutto come indizi.`);
   }
 
-  const items = [
-    ...alerts.slice(0, 5).map(i => ({ ...i, cls: '' })),
-    ...goods.slice(0, 3).map(i => ({ ...i, cls: ' positive' })),
-    ...notes.slice(0, 2).map(i => ({ ...i, cls: ' note' })),
-  ];
-  if (items.length === 0) return '';
-  return `
-    <div class="panel">
-      <div class="panel-title">Insight</div>
-      ${items.map(i => `<div class="insight-item${i.cls}"><b>${i.h}.</b> ${i.b}</div>`).join('')}
-    </div>
-  `;
+  // Assemblaggio: sezioni bilanciate (forza prima, poi criticità, poi note)
+  const g = goods.slice(0, 4), a = alerts.slice(0, 4), n = notes.slice(0, 2);
+  if (g.length + a.length + n.length === 0) return '';
+  const rows = arr2 => arr2.map(i => `<div class="insight-item"><b>${i.h}.</b> ${i.b}</div>`).join('');
+  let html = '<div class="panel"><div class="panel-title">Insight</div>';
+  if (g.length) html += `<div class="insight-head good">✓ Punti di forza</div><div class="insight-group good">${rows(g)}</div>`;
+  if (a.length) html += `<div class="insight-head alert">△ Da migliorare</div><div class="insight-group alert">${rows(a)}</div>`;
+  if (n.length) html += `<div class="insight-head muted">· Note</div><div class="insight-group muted">${rows(n)}</div>`;
+  html += '</div>';
+  return html;
 }
 
 // Quanti filtri sono attivi (diversi da 'all'); utile per UI e per decidere
