@@ -1,6 +1,6 @@
 // Doji service worker — network-first per l'HTML (aggiornamenti immediati),
 // cache-first per gli asset statici. Offline: fallback alla cache.
-const CACHE = 'doji-v37';
+const CACHE = 'doji-v38';
 const ASSETS = [
   './',
   './index.html',
