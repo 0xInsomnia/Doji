@@ -1656,7 +1656,12 @@ function haptic(pattern) {
 }
 
 const state = {
-  trades: [],
+  trades: [],  // SOLO trade chiusi (status 'closed' o assente): tutto ciò che
+               // entra in statistiche, capitale, equity, calendario passa da qui
+  drafts: [],  // bozze (status 'draft'): pianificate ma non ancora chiuse.
+               // Tenute fuori da state.trades così non possono contaminare
+               // nessun calcolo — il vincolo è garantito dalla struttura, non
+               // da un filtro da ricordarsi in ogni punto.
   adjustments: [], // rettifiche di capitale (store separato: NON sono trade)
   config: { ...DEFAULT_CONFIG },
   view: 'home', // vista di apertura: la Home (logo, tasti rapidi account, P&L)
@@ -2078,8 +2083,11 @@ async function init() {
   await loadConfig();
   applyTheme(state.config.theme || 'editorial');
   try {
-    state.trades = await dbGetAll(TRADES_STORE);
-    state.trades.sort((a, b) => a.n - b.n);
+    const all = await dbGetAll(TRADES_STORE);
+    // I trade senza campo status sono storici (creati prima delle due fasi):
+    // valgono come chiusi. Nessuna migrazione dati necessaria.
+    state.trades = all.filter(isClosed).sort((a, b) => a.n - b.n);
+    state.drafts = all.filter(isDraft).sort((a, b) => (b.iso || '').localeCompare(a.iso || ''));
   } catch (e) {
     console.error('load trades', e);
   }
@@ -2147,8 +2155,28 @@ function currentAccount() {
   return state.config.accounts.find(a => a.id === state.config.current_account_id) || state.config.accounts[0];
 }
 
+// ── Stato del trade: bozza (pianificata) vs chiusa (esito registrato) ──
+// Un record senza campo `status` è un trade storico, precedente alle due fasi:
+// vale come chiuso. Così i dati esistenti restano validi senza migrazione.
+function isDraft(t) { return t.status === 'draft'; }
+function isClosed(t) { return t.status !== 'draft'; }
+
+// Trade chiusi del conto attivo: l'unica fonte per statistiche e capitale
 function tradesForCurrentAccount() {
   return state.trades.filter(t => t.account_id === state.config.current_account_id);
+}
+
+// Bozze del conto attivo, più recenti in cima
+function draftsForCurrentAccount() {
+  return state.drafts
+    .filter(t => t.account_id === state.config.current_account_id)
+    .sort((a, b) => (b.iso || '').localeCompare(a.iso || ''));
+}
+
+// Registra una modifica sul trade senza mai toccare `iso` (data del trade)
+// né `created_iso` (momento di inserimento): solo l'elenco dei ritocchi.
+function stampEdit(t) {
+  t.edits = [...(t.edits || []), new Date().toISOString()];
 }
 
 // Rettifiche di capitale dell'account, in ordine cronologico
@@ -2286,6 +2314,7 @@ async function addTrade() {
         existing.iso = tradeDate.toISOString();
         existing.ts = tradeDate.toLocaleDateString('it-IT');
       }
+      stampEdit(existing); // traccia il ritocco senza toccare iso/created_iso
       try {
         await dbPut(TRADES_STORE, existing);
         await renumberTrades();
@@ -2325,7 +2354,11 @@ async function addTrade() {
     tags: [...f.tags],
     note: f.note.trim(),
     ts: tradeDate.toLocaleDateString('it-IT'),
-    iso: tradeDate.toISOString(),
+    iso: tradeDate.toISOString(),          // data DEL TRADE (modificabile)
+    created_iso: new Date().toISOString(), // momento di INSERIMENTO (immutabile)
+    closed_iso: new Date().toISOString(),  // registrato già chiuso: coincide
+    status: 'closed',
+    edits: [],
   };
 
   try {
@@ -2520,7 +2553,7 @@ function showToast(msg, type) {
 //  EXPORT / IMPORT / RESET
 // ============================================================
 function exportData() {
-  if (state.trades.length === 0 && Object.keys(state.config).length === 0) {
+  if (state.trades.length === 0 && state.drafts.length === 0 && Object.keys(state.config).length === 0) {
     showToast('Nessun dato da esportare', 'error');
     return;
   }
@@ -2528,7 +2561,8 @@ function exportData() {
     version: 3, app: 'tradelog',
     exported_at: new Date().toISOString(),
     config: state.config,
-    trades: state.trades,
+    // Bozze incluse nel backup: hanno il campo status, al reimport tornano bozze
+    trades: [...state.trades, ...state.drafts],
     adjustments: state.adjustments,
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -2567,6 +2601,7 @@ function importData(file) {
       sorted.forEach(t => {
         const aid = t.account_id || 'acc1';
         t.account_id = aid;
+        if (isDraft(t)) { t.n = 0; return; } // le bozze non consumano numeri
         groups[aid] = groups[aid] || [];
         groups[aid].push(t);
       });
@@ -2574,7 +2609,9 @@ function importData(file) {
         arr.forEach((t, i) => { t.n = i + 1; });
       });
       await dbBulkPut(TRADES_STORE, sorted);
-      state.trades = sorted;
+      // Ripartisci come al caricamento: le bozze restano fuori dalle statistiche
+      state.trades = sorted.filter(isClosed);
+      state.drafts = sorted.filter(isDraft);
       // Rettifiche: presenti solo nei backup v3+; un backup vecchio le azzera senza errori
       await dbClear(ADJUSTMENTS_STORE);
       const adjs = Array.isArray(data.adjustments) ? data.adjustments : [];
@@ -2604,6 +2641,7 @@ async function resetAll() {
   await dbClear(CONFIG_STORE);
   await dbClear(ADJUSTMENTS_STORE);
   state.trades = [];
+  state.drafts = [];
   state.adjustments = [];
   state.config = { ...DEFAULT_CONFIG };
   await saveConfig();
@@ -3982,6 +4020,23 @@ function buildReport() {
     byAsset.forEach(b => L.push(`- ${b.key}: ${b.count} trade · exp ${b.stats.expectancy >= 0 ? '+' : ''}${b.stats.expectancy.toFixed(2)}R`));
   }
 
+  // Tracciabilità: quanto viene registrato a posteriori e quanto ritoccato.
+  // Serve a capire se le classificazioni sono state scritte a caldo o col
+  // senno di poi (un trade inserito giorni dopo l'evento è meno affidabile).
+  const planned = arr.filter(t => t.closed_iso && t.created_iso && t.closed_iso !== t.created_iso);
+  const edited = arr.filter(t => (t.edits || []).length > 0);
+  const late = arr.filter(t => {
+    if (!t.created_iso || !t.iso) return false;
+    return new Date(t.created_iso).getTime() - new Date(t.iso).getTime() > 24 * 3600 * 1000;
+  });
+  if (arr.some(t => t.created_iso)) {
+    L.push(''); L.push('AFFIDABILITÀ DEL DATO');
+    L.push(`- Pianificati prima dell'entrata (due fasi): ${planned.length} su ${arr.length}`);
+    L.push(`- Registrati oltre 24h dopo il trade: ${late.length}`);
+    L.push(`- Modificati dopo il salvataggio: ${edited.length}`);
+    if (state.drafts.length) L.push(`- Bozze aperte non ancora chiuse (escluse dalle statistiche): ${draftsForCurrentAccount().length}`);
+  }
+
   L.push(''); L.push(`TRADE (${arr.length}, dal più recente)`);
   L.push('formato: #n | data | direzione asset | setup | contesto | tf | R pianif→reale | esito | tag');
   arr.forEach(t => {
@@ -3989,7 +4044,17 @@ function buildReport() {
     const tags = (t.tags || []).join(',') || '—';
     const rr = `${t.rr_planned}→${t.rr_actual >= 0 ? '+' : ''}${t.rr_actual}R`;
     const note = t.note ? ` | nota: ${t.note}` : '';
-    L.push(`#${t.n} | ${t.ts} | ${t.direction.toUpperCase()} ${t.asset} | ${t.setup || '—'} | ${t.context || '—'} | ${t.timeframe || '—'} | ${rr} | ${o} | ${tags}${note}`);
+    // Meta: inserimento, chiusura e ritocchi (solo quando aggiungono informazione)
+    const meta = [];
+    if (t.created_iso) {
+      const ins = new Date(t.created_iso);
+      const gapH = t.iso ? (ins.getTime() - new Date(t.iso).getTime()) / 3600000 : 0;
+      if (gapH > 24) meta.push(`inserito ${Math.round(gapH / 24)}g dopo`);
+    }
+    if (t.closed_iso && t.created_iso && t.closed_iso !== t.created_iso) meta.push('pianificato prima');
+    if ((t.edits || []).length) meta.push(`${t.edits.length} modifiche`);
+    const metaStr = meta.length ? ` | [${meta.join(' · ')}]` : '';
+    L.push(`#${t.n} | ${t.ts} | ${t.direction.toUpperCase()} ${t.asset} | ${t.setup || '—'} | ${t.context || '—'} | ${t.timeframe || '—'} | ${rr} | ${o} | ${tags}${note}${metaStr}`);
   });
 
   return L.join('\n');
