@@ -978,6 +978,108 @@ body[data-theme="sakura"] .account-tab { border-radius: 999px; }
 }
 
 /* Form: indicatore modalità modifica */
+/* Scelta della fase: piano prima di entrare / trade già chiuso */
+.mode-switch {
+  display: flex; gap: 6px; margin-bottom: 14px;
+}
+.mode-btn {
+  flex: 1; padding: 9px 8px; cursor: pointer;
+  background: var(--surface-alt);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  display: flex; flex-direction: column; gap: 2px;
+  transition: background 0.12s, border-color 0.12s;
+}
+.mode-btn .mode-title {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim);
+}
+.mode-btn .mode-sub { font-size: 9.5px; color: var(--text-muted); }
+.mode-btn.active { background: var(--accent); border-color: var(--accent); }
+.mode-btn.active .mode-title { color: var(--on-accent); }
+.mode-btn.active .mode-sub { color: var(--on-accent); opacity: 0.75; }
+
+.complete-banner {
+  background: var(--surface-alt);
+  border: 1px solid var(--text);
+  border-radius: var(--radius);
+  padding: 10px 14px; margin-bottom: 12px;
+  font-size: 12px; font-family: var(--font-mono);
+  display: flex; justify-content: space-between; align-items: center;
+}
+.complete-banner .label { color: var(--text); font-weight: 700; letter-spacing: 0.05em; }
+.complete-banner .cancel-link {
+  color: var(--text-dim); text-decoration: underline;
+  background: none; border: none; font-size: 11px;
+  font-family: var(--font-mono); cursor: pointer;
+}
+
+/* Richiamo dei piani aperti in Home */
+.home-drafts {
+  width: 100%; display: flex; align-items: center; gap: 9px;
+  padding: 11px 14px; margin-bottom: 10px; cursor: pointer;
+  background: var(--surface); border: 1px dashed var(--text-dim);
+  border-radius: var(--radius-card);
+  font-size: 12px; color: var(--text-dim); text-align: left;
+}
+.home-drafts-n {
+  font-family: var(--font-mono); font-size: 15px; font-weight: 700;
+  color: var(--text); min-width: 18px;
+}
+
+/* Bozze aperte in cima allo Storico */
+.draft-block { margin-bottom: 14px; }
+.draft-head {
+  font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--text-dim); margin: 0 2px 6px;
+}
+.draft-row {
+  background: var(--surface);
+  border: 1px dashed var(--text-dim);
+  border-radius: var(--radius-card);
+  padding: 11px 13px; margin-bottom: 7px;
+}
+.draft-row .draft-top {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-bottom: 3px;
+}
+.draft-row .draft-dir {
+  font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+  letter-spacing: 0.06em;
+}
+.draft-row .draft-dir.long { color: var(--win); }
+.draft-row .draft-dir.short { color: var(--loss); }
+[data-mono="true"] .draft-row .draft-dir.long,
+[data-mono="true"] .draft-row .draft-dir.short { color: var(--text); }
+.draft-row .draft-asset { font-weight: 700; font-size: 13px; color: var(--text); }
+.draft-row .draft-setup { font-size: 12px; color: var(--text-dim); }
+.draft-row .draft-meta {
+  font-family: var(--font-mono); font-size: 10px; color: var(--text-muted);
+  margin-bottom: 9px;
+}
+.draft-row .draft-actions { display: flex; gap: 6px; }
+.draft-row .draft-actions button {
+  flex: 1; padding: 8px 6px; cursor: pointer;
+  font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  border-radius: var(--radius);
+}
+.draft-act-complete { background: var(--accent); color: var(--on-accent); border: 1px solid var(--accent); }
+.draft-act-skip, .draft-act-del {
+  background: transparent; color: var(--text-dim);
+  border: 1px solid var(--border-subtle);
+}
+.draft-act-del { flex: 0 0 44px !important; }
+/* Riga "non entrato" nello Storico: presente ma silenziosa */
+.trade-row.skipped { opacity: 0.55; border-style: dashed; }
+.skip-badge {
+  font-family: var(--font-mono); font-size: 9px; font-weight: 700;
+  letter-spacing: 0.08em; color: var(--text-muted);
+  border: 1px solid var(--border-subtle); border-radius: 3px;
+  padding: 1px 4px;
+}
+
 .edit-mode-banner {
   background: var(--surface-alt);
   border: 1px solid var(--text);
@@ -1041,6 +1143,22 @@ body[data-theme="sakura"] .account-tab { border-radius: 999px; }
     </div>
     <div class="tilt-banner hidden" id="tilt-banner"></div>
 
+    <!-- Scelta fase: piano (prima di entrare) o trade già chiuso -->
+    <div class="mode-switch" id="form-mode-switch">
+      <button class="mode-btn" id="mode-draft">
+        <span class="mode-title">Piano</span>
+        <span class="mode-sub">prima di entrare</span>
+      </button>
+      <button class="mode-btn" id="mode-closed">
+        <span class="mode-title">Trade chiuso</span>
+        <span class="mode-sub">registra tutto ora</span>
+      </button>
+    </div>
+    <div class="complete-banner hidden" id="complete-banner">
+      <span class="label">Chiusura bozza</span>
+      <button class="cancel-link" id="complete-cancel">Annulla</button>
+    </div>
+
     <div class="field-row">
       <div class="field-col" style="flex: 0; min-width: auto;">
         <span class="field-label">Direzione</span>
@@ -1091,6 +1209,8 @@ body[data-theme="sakura"] .account-tab { border-radius: 999px; }
       <input type="number" id="risk-amt" class="input big-num hidden" placeholder="es. 5000" step="100" min="0" inputmode="decimal">
       <div class="hint hidden" id="risk-amt-hint">Per default usa il capitale corrente dell'account. Specifica un valore solo se vuoi rischiare su una base diversa (es. tieni parte del capitale fuori dal trading).</div>
     </div>
+    <!-- Blocco RISULTATO: nascosto in modalità Piano (fase 1) -->
+    <div id="result-block">
     <div class="field">
       <span class="field-label required">Esito *</span>
       <div class="chip-group">
@@ -1127,6 +1247,7 @@ body[data-theme="sakura"] .account-tab { border-radius: 999px; }
       <button class="note-toggle" id="note-toggle">+ aggiungi nota libera</button>
       <textarea class="textarea hidden" id="note" placeholder="Note specifiche su questo trade..."></textarea>
     </div>
+    </div><!-- /result-block -->
 
     <div class="btn-row">
       <button class="btn-primary" id="add-btn">+ Aggiungi trade</button>
@@ -1136,6 +1257,7 @@ body[data-theme="sakura"] .account-tab { border-radius: 999px; }
 
 <!-- ================ HISTORY VIEW (Storico) ================ -->
 <div id="history-view" class="hidden">
+  <div class="draft-block" id="draft-block"></div>
   <div class="filter-bar" id="history-filters"></div>
   <div class="history-summary" id="history-summary"></div>
   <div id="trades-list"></div>
@@ -1669,6 +1791,11 @@ const state = {
   filters: { dateRange: 'all', asset: 'all', setup: 'all', tag: 'all', direction: 'all', context: 'all', timeframe: 'all' }, // filtri delle Stats
   historyFilter: { dateRange: 'all' }, // filtro dello Storico (indipendente): solo periodo
   editingId: null,
+  // Modalità del form: 'draft' = registro il piano prima di entrare,
+  // 'closed' = registro un trade già chiuso (via diretta), 'complete' =
+  // sto chiudendo una bozza esistente.
+  formMode: 'draft',
+  completingId: null, // id della bozza che sto completando
   detailId: null,
   navStack: [],
   logLimit: 15,
@@ -2087,7 +2214,7 @@ async function init() {
     // I trade senza campo status sono storici (creati prima delle due fasi):
     // valgono come chiusi. Nessuna migrazione dati necessaria.
     state.trades = all.filter(isClosed).sort((a, b) => a.n - b.n);
-    state.drafts = all.filter(isDraft).sort((a, b) => (b.iso || '').localeCompare(a.iso || ''));
+    state.drafts = all.filter(isPending).sort((a, b) => (b.iso || '').localeCompare(a.iso || ''));
   } catch (e) {
     console.error('load trades', e);
   }
@@ -2155,21 +2282,34 @@ function currentAccount() {
   return state.config.accounts.find(a => a.id === state.config.current_account_id) || state.config.accounts[0];
 }
 
-// ── Stato del trade: bozza (pianificata) vs chiusa (esito registrato) ──
-// Un record senza campo `status` è un trade storico, precedente alle due fasi:
-// vale come chiuso. Così i dati esistenti restano validi senza migrazione.
+// ── Stati del trade ──
+//  'draft'   = pianificato, non ancora chiuso (bozza aperta)
+//  'skipped' = pianificato ma NON entrato (decisione registrata)
+//  'closed'  = esito registrato — l'unico che conta nelle statistiche
+// Un record senza campo `status` è un trade storico, precedente alle due
+// fasi: vale come chiuso. Così i dati esistenti restano validi senza migrazione.
 function isDraft(t) { return t.status === 'draft'; }
-function isClosed(t) { return t.status !== 'draft'; }
+function isSkipped(t) { return t.status === 'skipped'; }
+function isClosed(t) { return t.status !== 'draft' && t.status !== 'skipped'; }
+// Tutto ciò che non è chiuso vive in state.drafts, fuori da ogni calcolo
+function isPending(t) { return isDraft(t) || isSkipped(t); }
 
 // Trade chiusi del conto attivo: l'unica fonte per statistiche e capitale
 function tradesForCurrentAccount() {
   return state.trades.filter(t => t.account_id === state.config.current_account_id);
 }
 
-// Bozze del conto attivo, più recenti in cima
+// Bozze aperte del conto attivo, più recenti in cima
 function draftsForCurrentAccount() {
   return state.drafts
-    .filter(t => t.account_id === state.config.current_account_id)
+    .filter(t => t.account_id === state.config.current_account_id && isDraft(t))
+    .sort((a, b) => (b.iso || '').localeCompare(a.iso || ''));
+}
+
+// Setup pianificati ma non presi, dal conto attivo
+function skippedForCurrentAccount() {
+  return state.drafts
+    .filter(t => t.account_id === state.config.current_account_id && isSkipped(t))
     .sort((a, b) => (b.iso || '').localeCompare(a.iso || ''));
 }
 
@@ -2241,7 +2381,129 @@ function currentCapital(accId) {
 // ============================================================
 //  ACTIONS
 // ============================================================
+// ── FASE 1: salva il piano prima di entrare ──
+// Volutamente minimale: setup e R/R pianificato, il resto è facoltativo.
+// Deve costare pochi secondi, altrimenti non lo si usa quando serve.
+async function saveDraft() {
+  const f = state.form;
+  const missing = [];
+  if (!f.setup) missing.push('Setup');
+  if (!f.rr_planned) missing.push('R/R pianificato');
+  if (missing.length > 0) { showToast('Compila: ' + missing.join(', '), 'error'); return; }
+
+  const acc = currentAccount();
+  const now = new Date();
+  const draft = {
+    id: Date.now(),
+    n: 0, // le bozze non consumano il numero progressivo
+    account_id: acc.id,
+    direction: f.direction,
+    asset: f.asset,
+    setup: f.setup,
+    context: f.context || null,
+    timeframe: f.timeframe || null,
+    outcome: null,
+    tp_respected: null, sl_respected: null,
+    rr_planned: parseFloat(f.rr_planned),
+    rr_actual: null,
+    risk_pct: parseFloat(f.risk_pct) || acc.risk_pct,
+    risk_amount: f.risk_amount === '' ? null : parseFloat(f.risk_amount),
+    capital_used: f.capital_used === '' ? null : parseFloat(f.capital_used),
+    tags: [], note: '',
+    ts: now.toLocaleDateString('it-IT'),
+    iso: now.toISOString(),
+    created_iso: now.toISOString(),
+    closed_iso: null,
+    status: 'draft',
+    edits: [],
+  };
+  try {
+    await dbPut(TRADES_STORE, draft);
+    state.drafts.push(draft);
+    resetForm();
+    showToast('✓ Piano salvato', 'success');
+    navOpen('history');
+  } catch (e) {
+    showToast('Errore salvataggio', 'error');
+    console.error(e);
+  }
+}
+
+// ── FASE 2: chiudi una bozza aggiungendo l'esito ──
+async function completeDraft() {
+  const f = state.form;
+  const draft = state.drafts.find(t => t.id === state.completingId);
+  if (!draft) { showToast('Bozza non trovata', 'error'); return; }
+
+  const useDollar = f.last_edited === 'dollar' && f.result_dollar !== '' && f.outcome && f.outcome !== 'be';
+  const missing = [];
+  if (!f.rr_planned) missing.push('R/R pianificato');
+  if (f.outcome === null) missing.push('Esito');
+  if ((f.outcome === 'partial' || f.outcome === 'loss') && f.rr_actual === '') missing.push('R/R reale');
+  if (missing.length > 0) { showToast('Compila: ' + missing.join(', '), 'error'); return; }
+
+  const rrPlanned = parseFloat(f.rr_planned);
+  let rr_actual;
+  switch (f.outcome) {
+    case 'win': rr_actual = rrPlanned; break;
+    case 'be': rr_actual = 0; break;
+    case 'partial': rr_actual = Math.abs(parseFloat(f.rr_actual)); break;
+    case 'loss': rr_actual = -Math.abs(parseFloat(f.rr_actual)); break;
+  }
+  const disc = deriveDiscipline(f.outcome, rr_actual);
+
+  // Il piano è stato ritoccato in fase di chiusura? Va segnato: è esattamente
+  // il punto in cui il senno di poi può riscrivere la ragione dell'entrata.
+  const planChanged = draft.setup !== f.setup || draft.context !== (f.context || null)
+    || draft.timeframe !== (f.timeframe || null) || draft.direction !== f.direction
+    || draft.asset !== f.asset || draft.rr_planned !== rrPlanned;
+
+  draft.direction = f.direction;
+  draft.asset = f.asset;
+  draft.setup = f.setup;
+  draft.context = f.context || null;
+  draft.timeframe = f.timeframe || null;
+  draft.outcome = f.outcome;
+  draft.tp_respected = disc.tp_respected;
+  draft.sl_respected = disc.sl_respected;
+  draft.rr_planned = rrPlanned;
+  draft.rr_actual = rr_actual;
+  draft.risk_pct = parseFloat(f.risk_pct) || draft.risk_pct;
+  if (useDollar) {
+    draft.risk_amount = Math.abs(parseFloat(f.result_dollar)) / Math.abs(rr_actual);
+    draft.capital_used = null;
+  } else {
+    draft.risk_amount = f.risk_amount === '' ? null : parseFloat(f.risk_amount);
+    draft.capital_used = f.capital_used === '' ? null : parseFloat(f.capital_used);
+  }
+  draft.tags = [...f.tags];
+  draft.note = f.note.trim();
+  draft.status = 'closed';
+  draft.closed_iso = new Date().toISOString();
+  if (planChanged) { draft.plan_edited_at_close = true; stampEdit(draft); }
+
+  try {
+    // Passa dalle bozze ai trade veri: da qui entra nelle statistiche
+    state.drafts = state.drafts.filter(t => t.id !== draft.id);
+    state.trades.push(draft);
+    await dbPut(TRADES_STORE, draft);
+    await renumberTrades();
+    state.completingId = null;
+    state.formMode = 'draft';
+    resetForm();
+    showToast('✓ Trade chiuso', 'success');
+    navOpen('history');
+  } catch (e) {
+    showToast('Errore salvataggio', 'error');
+    console.error(e);
+  }
+}
+
 async function addTrade() {
+  // Instrada secondo la fase in corso
+  if (state.formMode === 'complete') return completeDraft();
+  if (state.formMode === 'draft' && !state.editingId) return saveDraft();
+
   const f = state.form;
   const useDollar = f.last_edited === 'dollar' && f.result_dollar !== '' && f.outcome && f.outcome !== 'be';
   const missing = [];
@@ -2447,6 +2709,92 @@ function startEdit(id) {
   }, 100);
 }
 
+// Apre una bozza per la chiusura: il piano è già scritto, resta l'esito
+function startComplete(id) {
+  const t = state.drafts.find(x => x.id === id);
+  if (!t) return;
+  state.completingId = id;
+  state.formMode = 'complete';
+  state.editingId = null;
+  state.form = {
+    direction: t.direction,
+    asset: t.asset,
+    setup: t.setup,
+    context: t.context || '',
+    timeframe: t.timeframe || '',
+    rr_planned: String(t.rr_planned),
+    risk_pct: String(t.risk_pct),
+    risk_amount: t.risk_amount != null ? String(t.risk_amount) : '',
+    capital_used: t.capital_used != null ? String(t.capital_used) : '',
+    result_dollar: '',
+    last_edited: 'pct',
+    outcome: null,
+    tp_respected: null,
+    sl_respected: null,
+    rr_actual: '',
+    tags: [],
+    note: '',
+    trade_date: toDatetimeLocalValue(new Date(t.iso)),
+  };
+  document.getElementById('rr-planned').value = state.form.rr_planned;
+  document.getElementById('rr-actual').value = '';
+  document.getElementById('risk-pct').value = state.form.risk_pct;
+  document.getElementById('risk-amt').value = state.form.capital_used;
+  document.getElementById('result-dollar').value = '';
+  document.getElementById('note').value = '';
+  document.getElementById('trade-date').value = state.form.trade_date;
+  navOpen('log');
+  setTimeout(() => {
+    const el = document.getElementById('complete-banner');
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 100);
+}
+
+function cancelComplete() {
+  state.completingId = null;
+  state.formMode = 'draft';
+  resetForm();
+  render();
+}
+
+// Il setup pianificato non è stato preso: resta agli atti, fuori dalle statistiche
+async function skipDraft(id) {
+  const t = state.drafts.find(x => x.id === id);
+  if (!t) return;
+  t.status = 'skipped';
+  t.skipped_iso = new Date().toISOString();
+  try {
+    await dbPut(TRADES_STORE, t);
+    showToast('Segnato come non entrato', 'success');
+    render();
+  } catch (e) { showToast('Errore salvataggio', 'error'); console.error(e); }
+}
+
+// Ripesca un "non entrato" e lo rimette tra le bozze aperte
+async function unskipDraft(id) {
+  const t = state.drafts.find(x => x.id === id);
+  if (!t) return;
+  t.status = 'draft';
+  delete t.skipped_iso;
+  try {
+    await dbPut(TRADES_STORE, t);
+    showToast('Tornata tra le bozze', 'success');
+    render();
+  } catch (e) { showToast('Errore salvataggio', 'error'); console.error(e); }
+}
+
+async function deleteDraft(id) {
+  const t = state.drafts.find(x => x.id === id);
+  if (!t) return;
+  if (!confirm(`Eliminare il piano ${t.direction.toUpperCase()} ${t.asset} (${t.setup})?`)) return;
+  try {
+    await dbDelete(TRADES_STORE, id);
+    state.drafts = state.drafts.filter(x => x.id !== id);
+    showToast('Piano eliminato', 'success');
+    render();
+  } catch (e) { showToast('Errore eliminazione', 'error'); console.error(e); }
+}
+
 function cancelEdit() {
   state.editingId = null;
   resetForm();
@@ -2601,7 +2949,7 @@ function importData(file) {
       sorted.forEach(t => {
         const aid = t.account_id || 'acc1';
         t.account_id = aid;
-        if (isDraft(t)) { t.n = 0; return; } // le bozze non consumano numeri
+        if (isPending(t)) { t.n = 0; return; } // bozze e non-entrati non consumano numeri
         groups[aid] = groups[aid] || [];
         groups[aid].push(t);
       });
@@ -2611,7 +2959,7 @@ function importData(file) {
       await dbBulkPut(TRADES_STORE, sorted);
       // Ripartisci come al caricamento: le bozze restano fuori dalle statistiche
       state.trades = sorted.filter(isClosed);
-      state.drafts = sorted.filter(isDraft);
+      state.drafts = sorted.filter(isPending);
       // Rettifiche: presenti solo nei backup v3+; un backup vecchio le azzera senza errori
       await dbClear(ADJUSTMENTS_STORE);
       const adjs = Array.isArray(data.adjustments) ? data.adjustments : [];
@@ -3125,7 +3473,50 @@ function renderAccountTabs() {
   });
 }
 
+// Governa le tre facce del form:
+//  'draft'    → solo il piano, si salva in pochi secondi prima di entrare
+//  'closed'   → tutto insieme (via diretta, per registrare a posteriori)
+//  'complete' → sto chiudendo una bozza: piano già compilato + risultato
+function renderFormMode() {
+  // Se la bozza in completamento non esiste più (eliminata, o cambiato conto)
+  // torna alla fase piano invece di restare in uno stato senza appigli
+  if (state.formMode === 'complete' && !state.drafts.some(t => t.id === state.completingId)) {
+    state.formMode = 'draft';
+    state.completingId = null;
+  }
+  const mode = state.formMode;
+  const editing = !!state.editingId;
+  const completing = mode === 'complete';
+  // In modifica di un trade esistente il selettore non ha senso
+  document.getElementById('form-mode-switch').classList.toggle('hidden', editing || completing);
+  document.getElementById('complete-banner').classList.toggle('hidden', !completing);
+  document.getElementById('mode-draft').classList.toggle('active', mode === 'draft' && !editing);
+  document.getElementById('mode-closed').classList.toggle('active', mode === 'closed' || editing);
+
+  // Il blocco risultato esiste solo quando un risultato c'è davvero
+  const planOnly = mode === 'draft' && !editing;
+  document.getElementById('result-block').classList.toggle('hidden', planOnly);
+  // La data del trade in fase di piano è adesso: campo inutile, lo nascondo
+  document.getElementById('trade-date').closest('.field').classList.toggle('hidden', planOnly);
+
+  const btn = document.getElementById('add-btn');
+  const title = document.getElementById('form-title');
+  if (editing) {
+    btn.textContent = '✓ Salva modifiche';
+  } else if (completing) {
+    btn.textContent = '✓ Chiudi trade';
+    title.textContent = 'Chiudi il trade';
+  } else if (planOnly) {
+    btn.textContent = '✓ Salva piano';
+    title.textContent = 'Nuovo piano';
+  } else {
+    btn.textContent = '+ Aggiungi trade';
+    title.textContent = 'Nuovo trade';
+  }
+}
+
 function renderLog() {
+  renderFormMode();
   // Form: direzione
   document.getElementById('dir-long').classList.toggle('active', state.form.direction === 'long');
   document.getElementById('dir-short').classList.toggle('active', state.form.direction === 'short');
@@ -3246,6 +3637,15 @@ function renderHome() {
     ? `<div class="tilt-banner">${tiltBannerText(tilt.streak, tilt.lossToday)}</div>`
     : '';
 
+  // Piani aperti: richiamo in Home, la vista dove si atterra
+  const nDrafts = draftsForCurrentAccount().length;
+  const draftHtml = nDrafts > 0
+    ? `<button class="home-drafts" id="home-drafts">
+         <span class="home-drafts-n">${nDrafts}</span>
+         <span>${nDrafts === 1 ? 'piano aperto da chiudere' : 'piani aperti da chiudere'}</span>
+       </button>`
+    : '';
+
   // Per ogni conto: capitale corrente e P&L TOTALE (tutti i trade, rettifiche escluse)
   const accs = state.config.accounts.map(a => {
     const accTrades = state.trades
@@ -3286,6 +3686,7 @@ function renderHome() {
     <div class="home-watermark">${iconSvg(340)}</div>
     <div class="home-inner">
       ${tiltHtml}
+      ${draftHtml}
       <div class="home-accounts">
         ${accs.map(r => `
           <button class="home-acc" data-home-acc="${r.a.id}">
@@ -3312,6 +3713,10 @@ function renderHome() {
     </div>
   `;
 
+  // Tap sul richiamo dei piani aperti: porta allo Storico, dove stanno in cima
+  const draftBtn = document.getElementById('home-drafts');
+  if (draftBtn) draftBtn.onclick = () => navOpen('history');
+
   // Tap su un conto: lo seleziona e apre subito il form Nuovo trade
   box.querySelectorAll('[data-home-acc]').forEach(btn => {
     btn.onclick = async () => {
@@ -3323,6 +3728,53 @@ function renderHome() {
       }
       navOpen('log');
     };
+  });
+}
+
+// Bozze aperte in cima allo Storico: ognuna con la via diretta alla chiusura.
+// Mostra da quanto è aperta, così le bozze dimenticate si notano.
+function renderDraftBlock() {
+  const box = document.getElementById('draft-block');
+  if (!box) return;
+  const drafts = draftsForCurrentAccount();
+  if (drafts.length === 0) { box.innerHTML = ''; box.classList.add('hidden'); return; }
+  box.classList.remove('hidden');
+
+  const ago = (iso) => {
+    const h = (Date.now() - new Date(iso).getTime()) / 3600000;
+    if (h < 1) return 'da pochi minuti';
+    if (h < 24) return `da ${Math.round(h)}h`;
+    const d = Math.round(h / 24);
+    return `da ${d} giorn${d === 1 ? 'o' : 'i'}`;
+  };
+
+  box.innerHTML = `
+    <div class="draft-head">${drafts.length} ${drafts.length === 1 ? 'piano aperto' : 'piani aperti'}</div>
+    ${drafts.map(t => `
+      <div class="draft-row">
+        <div class="draft-top">
+          <span class="draft-dir ${t.direction}">${t.direction.toUpperCase()}</span>
+          <span class="draft-asset">${escapeHtml(t.asset || '—')}</span>
+          <span class="draft-setup">${escapeHtml(t.setup || '—')}</span>
+        </div>
+        <div class="draft-meta">
+          ${t.rr_planned}R pianificato${t.context ? ' · ' + escapeHtml(t.context) : ''}${t.timeframe ? ' · ' + escapeHtml(t.timeframe) : ''} · ${ago(t.iso)}
+        </div>
+        <div class="draft-actions">
+          <button class="draft-act-complete" data-complete="${t.id}">Chiudi trade</button>
+          <button class="draft-act-skip" data-skip="${t.id}">Non entrato</button>
+          <button class="draft-act-del" data-deldraft="${t.id}" title="Elimina">✕</button>
+        </div>
+      </div>`).join('')}
+  `;
+  box.querySelectorAll('[data-complete]').forEach(b => {
+    b.onclick = () => startComplete(parseInt(b.dataset.complete));
+  });
+  box.querySelectorAll('[data-skip]').forEach(b => {
+    b.onclick = () => skipDraft(parseInt(b.dataset.skip));
+  });
+  box.querySelectorAll('[data-deldraft]').forEach(b => {
+    b.onclick = () => deleteDraft(parseInt(b.dataset.deldraft));
   });
 }
 
@@ -3352,6 +3804,10 @@ function renderHistory() {
     </select>`;
   document.getElementById('history-date').onchange = e => { state.historyFilter.dateRange = e.target.value; render(); };
 
+  // Bozze aperte: sempre in cima e sempre visibili, il filtro periodo non le
+  // tocca (sono operazioni in corso, non storia)
+  renderDraftBlock();
+
   const list = document.getElementById('trades-list');
   const summary = document.getElementById('history-summary');
   const filtered = hr !== 'all';
@@ -3377,8 +3833,16 @@ function renderHistory() {
     return;
   }
   // Timeline unica (trade filtrati + rettifiche), più recente in cima
+  // I setup pianificati e non presi restano nella timeline al loro posto:
+  // sono decisioni prese, anche se non hanno prodotto un P&L
+  const skipped = skippedForCurrentAccount().filter(t => {
+    if (!filtered) return true;
+    const days = hr === '30' ? 30 : 90;
+    return new Date(t.iso).getTime() >= Date.now() - days * 86400000;
+  });
   const items = [
     ...trades.map(t => ({ iso: t.iso || '', trade: t })),
+    ...skipped.map(t => ({ iso: t.iso || '', trade: t })),
     ...adjs.map(a => ({ iso: a.iso || '', adj: a })),
   ].sort((x, y) => y.iso.localeCompare(x.iso));
   const limit = state.logLimit || 15;
@@ -3588,6 +4052,21 @@ function buildTradeRows(list, trades, detailFrom) {
   list.innerHTML = '';
   trades.forEach(t => {
     const row = document.createElement('div');
+    // Un "non entrato" non ha esito né P&L: si mostra sbiadito e senza R
+    if (isSkipped(t)) {
+      row.className = 'trade-row skipped';
+      row.setAttribute('data-unskip', t.id);
+      row.innerHTML = `
+        <div class="trade-n">—</div>
+        <div class="trade-dir ${t.direction}">${t.direction.toUpperCase()}</div>
+        <div class="trade-asset">${escapeHtml(t.asset || '—')}</div>
+        <div class="trade-setup">${escapeHtml(t.setup || '—')}</div>
+        <div class="trade-rr"><span class="skip-badge">NON ENTRATO</span></div>
+        <div class="trade-ts">${t.ts}</div>
+      `;
+      list.appendChild(row);
+      return;
+    }
     row.className = 'trade-row';
     row.setAttribute('data-open', t.id);
     const valCls = t.rr_actual > 0 ? 'val-pos' : t.rr_actual === 0 ? 'val-zero' : 'val-neg';
@@ -3603,6 +4082,13 @@ function buildTradeRows(list, trades, detailFrom) {
       ${t.note ? `<div class="trade-note">${escapeHtml(t.note)}</div>` : ''}
     `;
     list.appendChild(row);
+  });
+  // Tap su un "non entrato": lo riporta tra i piani aperti (ci sei rientrato)
+  list.querySelectorAll('[data-unskip]').forEach(el => {
+    el.onclick = () => {
+      const id = parseInt(el.dataset.unskip);
+      if (confirm('Rimettere questo piano tra le bozze aperte?')) unskipDraft(id);
+    };
   });
   list.querySelectorAll('[data-open]').forEach(el => {
     let pressTimer = null;
@@ -4698,6 +5184,13 @@ function bindEvents() {
   // Bottom nav (incluso il FAB +): naviga via cronologia così il tasto indietro ripercorre
   document.querySelectorAll('.bottom-nav-item, .bottom-nav-fab').forEach(b => {
     b.onclick = () => {
+      // Il tasto + significa sempre "qualcosa di nuovo": esce da un eventuale
+      // completamento in corso invece di riaprirlo a sorpresa
+      if (b.classList.contains('bottom-nav-fab') && state.formMode === 'complete') {
+        state.formMode = 'draft';
+        state.completingId = null;
+        resetForm();
+      }
       if (state.view === b.dataset.view && !state.editingId) return; // già qui: niente push inutile
       navOpen(b.dataset.view);
     };
@@ -4783,6 +5276,19 @@ function bindEvents() {
 
   // Edit cancel
   document.getElementById('edit-cancel').onclick = () => navBack();
+
+  // Selettore di fase: piano (prima di entrare) / trade già chiuso
+  document.getElementById('mode-draft').onclick = () => {
+    if (state.editingId) return;
+    state.formMode = 'draft';
+    render();
+  };
+  document.getElementById('mode-closed').onclick = () => {
+    if (state.editingId) return;
+    state.formMode = 'closed';
+    render();
+  };
+  document.getElementById('complete-cancel').onclick = () => cancelComplete();
 
   // Add trade
   document.getElementById('add-btn').onclick = addTrade;
