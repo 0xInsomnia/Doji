@@ -500,6 +500,26 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
   padding: 4px 10px; letter-spacing: 0.03em;
 }
 .history-reset:active { background: var(--surface-alt); }
+.pref-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 14px; background: var(--surface);
+  border: 1px solid var(--border-subtle); border-radius: var(--radius-card);
+  font-size: 13px; color: var(--text); cursor: pointer;
+}
+.pref-toggle {
+  appearance: none; -webkit-appearance: none;
+  width: 44px; height: 26px; border-radius: 999px;
+  background: var(--surface-alt); border: 1px solid var(--border-subtle);
+  position: relative; cursor: pointer; transition: background 0.15s;
+  flex: none;
+}
+.pref-toggle::after {
+  content: ''; position: absolute; top: 2px; left: 2px;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: var(--text-muted); transition: transform 0.15s, background 0.15s;
+}
+.pref-toggle:checked { background: var(--accent); }
+.pref-toggle:checked::after { transform: translateX(18px); background: var(--on-accent); }
 .filter-select {
   background: var(--surface-alt);
   border: 1px solid var(--border-subtle);
@@ -1195,6 +1215,14 @@ body[data-theme="sakura"] .account-tab { border-radius: 999px; }
   </div>
 
   <div class="settings-section">
+    <div class="settings-heading">Preferenze</div>
+    <label class="pref-row">
+      <span>Feedback tattile</span>
+      <input type="checkbox" id="pref-haptics" class="pref-toggle">
+    </label>
+  </div>
+
+  <div class="settings-section">
     <div class="settings-heading">Tema</div>
     <div class="theme-grid" id="theme-grid"></div>
   </div>
@@ -1617,7 +1645,15 @@ const DEFAULT_CONFIG = {
   timeframes: ['15m','1h','4h'],
   theme: 'editorial',
   current_account_id: 'acc1',
+  haptics: true, // feedback tattile (vibrazione) sui tap — Android
 };
+
+// Feedback tattile: vibra se abilitato e supportato (Android; iOS non supporta).
+// pattern: numero (ms) o array (es. [30,50,30] per l'errore).
+function haptic(pattern) {
+  if (state.config.haptics === false) return;
+  if (navigator.vibrate) { try { navigator.vibrate(pattern); } catch (e) {} }
+}
 
 const state = {
   trades: [],
@@ -2476,6 +2512,8 @@ function showToast(msg, type) {
   el.textContent = (type === 'error' ? '⚠ ' : '') + msg;
   clearTimeout(showToast._t);
   showToast._t = setTimeout(() => { el.className = ''; el.textContent = ''; }, 3500);
+  // Feedback tattile: colpo secco di conferma sul successo, doppio "no" sull'errore
+  haptic(type === 'error' ? [28, 50, 28] : 16);
 }
 
 // ============================================================
@@ -3537,7 +3575,7 @@ function buildTradeRows(list, trades, detailFrom) {
       longPressed = false;
       pressTimer = setTimeout(() => {
         longPressed = true;
-        if (navigator.vibrate) navigator.vibrate(40);
+        haptic(40);
         showRowDeleteConfirm(el, id);
       }, 700);
     };
@@ -4344,6 +4382,17 @@ function renderSettings() {
   renderListEditor('timeframes-editor', state.config.timeframes || [], 'timeframes', 'es. 30m');
 
   // Theme grid
+  // Preferenze: feedback tattile
+  const hapt = document.getElementById('pref-haptics');
+  if (hapt) {
+    hapt.checked = state.config.haptics !== false;
+    hapt.onchange = async (e) => {
+      state.config.haptics = e.target.checked;
+      await saveConfig();
+      if (e.target.checked) haptic(16); // conferma tattile all'attivazione
+    };
+  }
+
   renderThemeGrid();
 }
 
@@ -4572,6 +4621,15 @@ function drawBarChart(trades) {
 //  EVENTS
 // ============================================================
 function bindEvents() {
+  // Feedback tattile leggero su ogni elemento interattivo principale.
+  // Delegato in capture: vale anche per gli elementi ricreati da render(),
+  // senza dover agganciare ogni singolo onclick.
+  document.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('.chip, .bottom-nav-item, .bottom-nav-fab, .home-acc, .account-tab, .view-tab, .cal-day[data-day], .trade-row, .btn-primary, .btn-secondary, .btn-danger, .theme-row')) {
+      haptic(9);
+    }
+  }, { capture: true, passive: true });
+
   // Bottom nav (incluso il FAB +): naviga via cronologia così il tasto indietro ripercorre
   document.querySelectorAll('.bottom-nav-item, .bottom-nav-fab').forEach(b => {
     b.onclick = () => {
