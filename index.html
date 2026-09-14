@@ -2234,7 +2234,7 @@ async function init() {
   await loadConfig();
   applyTheme(state.config.theme || 'editorial');
   try {
-    const all = await dbGetAll(TRADES_STORE);
+    const all = (await dbGetAll(TRADES_STORE)).map(sanitizeTrade);
     // I trade senza campo status sono storici (creati prima delle due fasi):
     // valgono come chiusi. Nessuna migrazione dati necessaria.
     state.trades = all.filter(isClosed).sort((a, b) => a.n - b.n);
@@ -2312,6 +2312,18 @@ function currentAccount() {
 //  'closed'  = esito registrato — l'unico che conta nelle statistiche
 // Un record senza campo `status` è un trade storico, precedente alle due
 // fasi: vale come chiuso. Così i dati esistenti restano validi senza migrazione.
+// Bonifica un trade letto da disco: un rischio $ non finito (Infinity/NaN)
+// avvelena ogni calcolo a valle — basta un record così e il capitale
+// dell'account diventa NaN per sempre. Poteva nascere da un PARZIALE/LOSS con
+// R reale 0 salvato in modalità dollaro (|$| / 0). Qui il campo torna a null
+// e il trade ricade sul rischio in %, che è sempre calcolabile.
+function sanitizeTrade(t) {
+  if (t.risk_amount != null && !Number.isFinite(t.risk_amount)) t.risk_amount = null;
+  if (t.capital_used != null && !Number.isFinite(t.capital_used)) t.capital_used = null;
+  if (!Number.isFinite(t.rr_actual)) t.rr_actual = isClosed(t) ? 0 : null;
+  return t;
+}
+
 function isDraft(t) { return t.status === 'draft'; }
 function isSkipped(t) { return t.status === 'skipped'; }
 function isClosed(t) { return t.status !== 'draft' && t.status !== 'skipped'; }
@@ -2352,21 +2364,37 @@ function adjustmentsForAccount(accId) {
 
 // Timeline unica del conto: trade + rettifiche di capitale, ordinati per iso.
 // Le rettifiche entrano SOLO nel calcolo del capitale, mai nelle statistiche.
+// Ordine cronologico totale e deterministico: a parità di istante decide l'id
+// (creato con Date.now(), quindi crescente). Serve perché la data del trade ha
+// precisione al minuto: senza un criterio di spareggio, due trade dello stesso
+// minuto potrebbero ordinarsi in modo diverso a seconda di chi chiama.
+function chronoCompare(a, b) {
+  const c = (a.iso || '').localeCompare(b.iso || '');
+  if (c !== 0) return c;
+  return (a.id || 0) - (b.id || 0);
+}
+
 function accountTimeline(sortedTrades, accId) {
   const events = [
-    ...sortedTrades.map(t => ({ iso: t.iso, trade: t })),
-    ...adjustmentsForAccount(accId).map(a => ({ iso: a.iso, adj: a })),
+    ...sortedTrades.map(t => ({ iso: t.iso, id: t.id, trade: t })),
+    ...adjustmentsForAccount(accId).map(a => ({ iso: a.iso, id: a.id, adj: a })),
   ];
-  events.sort((a, b) => a.iso.localeCompare(b.iso));
+  events.sort(chronoCompare);
   return events;
 }
 
 // Calcola il capitale dell'account al momento di un trade specifico
 // (capitale iniziale + P&L di tutti i trade chiusi PRIMA + rettifiche datate PRIMA)
+//
+// Si ferma sul trade STESSO (per id), non sul confronto di timestamp: con il
+// vecchio `ev.iso >= trade.iso` due trade registrati nello stesso minuto
+// avevano lo stesso iso, quindi il secondo si fermava prima di contare il
+// primo. Risultato: la somma dei P&L non tornava con il capitale mostrato in
+// alto, che invece li componeva in sequenza.
 function capitalAtTrade(trade, sortedTrades, acc) {
   let cap = acc.capital;
   for (const ev of accountTimeline(sortedTrades, trade.account_id)) {
-    if (ev.iso >= trade.iso) break;
+    if (ev.trade && ev.trade.id === trade.id) break; // arrivato a questo trade
     if (ev.adj) { cap += ev.adj.amount; continue; }
     const t = ev.trade;
     if (t.risk_amount != null) {
@@ -2386,7 +2414,7 @@ function currentCapital(accId) {
   const acc = state.config.accounts.find(a => a.id === accId) || currentAccount();
   const trades = state.trades
     .filter(t => t.account_id === accId)
-    .sort((a, b) => a.iso.localeCompare(b.iso));
+    .sort(chronoCompare);
   let cap = acc.capital;
   accountTimeline(trades, accId).forEach(ev => {
     if (ev.adj) { cap += ev.adj.amount; return; }
@@ -2476,6 +2504,11 @@ async function completeDraft() {
   if (f.outcome === null) missing.push('Esito');
   if ((f.outcome === 'partial' || f.outcome === 'loss') && f.rr_actual === '') missing.push('R/R reale');
   if (missing.length > 0) { showToast('Compila: ' + missing.join(', '), 'error'); return; }
+  // Un parziale o una perdita da 0R è un pareggio: va registrato come BE,
+  // altrimenti in modalità dollaro si finirebbe a dividere per zero
+  if ((f.outcome === 'partial' || f.outcome === 'loss') && parseFloat(f.rr_actual) === 0) {
+    showToast('R/R reale 0: per un pareggio usa BE', 'error'); return;
+  }
 
   const rrPlanned = parseFloat(f.rr_planned);
   let rr_actual;
@@ -2505,7 +2538,10 @@ async function completeDraft() {
   draft.rr_actual = rr_actual;
   draft.risk_pct = parseFloat(f.risk_pct) || draft.risk_pct;
   if (useDollar) {
-    draft.risk_amount = Math.abs(parseFloat(f.result_dollar)) / Math.abs(rr_actual);
+    // Rete di sicurezza: se il rapporto non è un numero valido si ricade sul
+    // rischio in %, invece di salvare un valore che romperebbe i totali
+    const derived = Math.abs(parseFloat(f.result_dollar)) / Math.abs(rr_actual);
+    draft.risk_amount = Number.isFinite(derived) && derived > 0 ? derived : null;
     draft.capital_used = null;
   } else {
     draft.risk_amount = f.risk_amount === '' ? null : parseFloat(f.risk_amount);
@@ -2550,6 +2586,12 @@ async function addTrade() {
     showToast('Compila: ' + missing.join(', '), 'error');
     return;
   }
+  // Un parziale o una perdita da 0R è un pareggio: va registrato come BE,
+  // altrimenti in modalità dollaro si finirebbe a dividere per zero
+  if ((f.outcome === 'partial' || f.outcome === 'loss') && parseFloat(f.rr_actual) === 0) {
+    showToast('R/R reale 0: per un pareggio usa BE', 'error');
+    return;
+  }
 
   // Deriva rr_actual da outcome
   const rrPlanned = parseFloat(f.rr_planned);
@@ -2572,14 +2614,21 @@ async function addTrade() {
     if (isNaN(d.getTime())) { showToast('Data trade non valida', 'error'); return; }
     const dayKey = x => x.getFullYear() * 10000 + (x.getMonth() + 1) * 100 + x.getDate();
     if (dayKey(d) > dayKey(new Date())) { showToast('La data non può essere nel futuro', 'error'); return; }
-    tradeDate = d;
+    // Il campo data ha precisione al minuto. Se indica il minuto corrente (cioè
+    // non è stato toccato) tieni l'ora vera con i secondi: due trade registrati
+    // di fila devono avere istanti diversi, altrimenti il capitale al momento
+    // del trade non sa quale viene prima e i totali non tornano.
+    if (toDatetimeLocalValue(d) !== toDatetimeLocalValue(tradeDate)) tradeDate = d;
   }
 
   // Se hai inserito il risultato $: deriva il rischio esatto (risk = |risultato| / |R|)
   // Altrimenti: usa rischio % × capitale (con eventuale capitale custom)
   let finalRiskAmount, finalCapitalUsed;
   if (useDollar) {
-    finalRiskAmount = Math.abs(parseFloat(f.result_dollar)) / Math.abs(rr_actual);
+    // Rete di sicurezza: se il rapporto non è un numero valido si ricade sul
+    // rischio in %, invece di salvare un valore che romperebbe i totali
+    const derived = Math.abs(parseFloat(f.result_dollar)) / Math.abs(rr_actual);
+    finalRiskAmount = Number.isFinite(derived) && derived > 0 ? derived : null;
     finalCapitalUsed = null;
   } else {
     finalRiskAmount = f.risk_amount === '' ? null : parseFloat(f.risk_amount);
@@ -2978,7 +3027,7 @@ function importData(file) {
       );
       if (!ok) return;
       await dbClear(TRADES_STORE);
-      const sorted = [...data.trades].sort((a, b) => (a.iso || '').localeCompare(b.iso || ''));
+      const sorted = [...data.trades].map(sanitizeTrade).sort((a, b) => (a.iso || '').localeCompare(b.iso || ''));
       // Rinumera per account
       const groups = {};
       sorted.forEach(t => {
@@ -3092,7 +3141,7 @@ function calcStats(arr) {
   // P&L in $
   const acc = currentAccount();
   // Capitale corrente dell'account = iniziale + somma di TUTTI i P&L precedenti (non filtrati)
-  const allAccTrades = tradesForCurrentAccount().sort((a, b) => a.iso.localeCompare(b.iso));
+  const allAccTrades = tradesForCurrentAccount().sort(chronoCompare);
   const pnlDollar = arr.reduce((s, t) => {
     if (t.risk_amount != null) {
       return s + (t.rr_actual * t.risk_amount);
@@ -3690,7 +3739,7 @@ function renderHome() {
   const accs = state.config.accounts.map(a => {
     const accTrades = state.trades
       .filter(t => t.account_id === a.id)
-      .sort((x, z) => x.iso.localeCompare(z.iso));
+      .sort(chronoCompare);
     let pnl = 0, count = 0;
     accTrades.forEach(t => {
       pnl += tradePnlDollar(t, accTrades, a);
