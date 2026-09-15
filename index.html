@@ -500,6 +500,41 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
   padding: 4px 10px; letter-spacing: 0.03em;
 }
 .history-reset:active { background: var(--surface-alt); }
+.hint.hint-stima { color: var(--text-muted); font-style: italic; }
+.fixpnl-intro {
+  background: var(--surface-alt); border: 1px solid var(--border-subtle);
+  border-radius: var(--radius); padding: 11px 13px; margin-bottom: 14px;
+  font-size: 11.5px; line-height: 1.55; color: var(--text-dim);
+}
+.fix-row {
+  background: var(--surface); border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card); padding: 11px 13px; margin-bottom: 8px;
+}
+.fix-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 3px; }
+.fix-n { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); }
+.fix-dir { font-family: var(--font-mono); font-size: 10px; font-weight: 700; }
+.fix-dir.long { color: var(--win); }
+.fix-dir.short { color: var(--loss); }
+[data-mono="true"] .fix-dir.long, [data-mono="true"] .fix-dir.short { color: var(--text); }
+.fix-asset { font-weight: 700; font-size: 13px; color: var(--text); }
+.fix-ts { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); margin-left: auto; }
+.fix-meta { font-size: 11px; color: var(--text-dim); margin-bottom: 9px; }
+.fix-input-row { display: flex; align-items: center; gap: 7px; }
+.fix-label {
+  font-family: var(--font-mono); font-size: 10px; color: var(--text-muted);
+  flex: 0 0 auto; min-width: 82px;
+}
+.fix-input { flex: 1; min-width: 0; margin: 0 !important; }
+.fix-save {
+  flex: 0 0 auto; padding: 9px 14px; cursor: pointer;
+  background: var(--accent); color: var(--on-accent); border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+  letter-spacing: 0.06em; text-transform: uppercase;
+}
+.pnl-stimato-btn {
+  cursor: pointer; background: transparent;
+}
 .pnl-stimato {
   font-family: var(--font-mono); font-size: 9px; font-weight: 700;
   letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted);
@@ -1304,6 +1339,19 @@ body[data-theme="sakura"] .account-tab { border-radius: 999px; }
   <div id="group-list"></div>
 </div>
 
+<!-- ============ SISTEMA I P&L STIMATI ============ -->
+<div id="fixpnl-view" class="hidden detail-view-wrap">
+  <div class="detail-header">
+    <button class="detail-back" id="fixpnl-back-btn">← Indietro</button>
+    <div>
+      <div class="detail-title">P&amp;L da sistemare</div>
+      <div class="detail-title-sub" id="fixpnl-sub"></div>
+    </div>
+  </div>
+  <div class="fixpnl-intro" id="fixpnl-intro"></div>
+  <div id="fixpnl-list"></div>
+</div>
+
 <!-- ================ SETTINGS VIEW ================ -->
 <div id="settings-view" class="hidden">
 
@@ -2046,16 +2094,22 @@ function syncRiskFields() {
       }
     }
   }
-  // Hint sotto la casella $
+  // Hint sotto la casella $. Deve essere lampante se l'importo è TUO o una
+  // stima calcolata: finché non lo scrivi tu, il P&L del trade resta un
+  // modello e il totale può non tornare col saldo vero del conto.
   const hint = document.getElementById('result-dollar-hint');
   if (hint) {
+    const mio = f.last_edited === 'dollar' && f.result_dollar !== '';
     const pct = parseFloat(f.risk_pct);
-    if (!isNaN(pct) && cap > 0) {
+    if (mio) {
+      hint.innerHTML = '✓ Importo reale: il P&amp;L di questo trade sarà esattamente questo.';
+    } else if (!isNaN(pct) && cap > 0) {
       const riskDollar = pct / 100 * cap;
-      hint.innerHTML = `Rischio: <strong>$${riskDollar.toFixed(2)}</strong> (${pct.toFixed(2)}% del capitale).`;
+      hint.innerHTML = `<strong>Stima</strong> da ${pct.toFixed(2)}% di $${cap.toFixed(0)} (rischio $${riskDollar.toFixed(2)}). Scrivi tu l'importo vero per fissarlo.`;
     } else {
-      hint.innerHTML = 'Cambia il rischio % o i $: si aggiornano a vicenda.';
+      hint.innerHTML = 'Scrivi il risultato reale in $: è quello che tiene allineato il capitale.';
     }
+    hint.classList.toggle('hint-stima', !mio);
   }
 }
 
@@ -3477,9 +3531,12 @@ function render() {
   document.getElementById('settings-view').classList.toggle('hidden', state.view !== 'settings');
   document.getElementById('group-view').classList.toggle('hidden', state.view !== 'group');
   document.getElementById('bulk-view').classList.toggle('hidden', state.view !== 'bulk');
+  document.getElementById('fixpnl-view').classList.toggle('hidden', state.view !== 'fixpnl');
+  if (state.view === 'fixpnl') renderFixPnl();
   // Sub-viste (dettaglio/gruppo/bulk): niente bottom nav, hanno il loro "indietro".
   // Impostazioni è una destinazione della bar ma non mostra le tab account.
-  const isSub = state.view === 'detail' || state.view === 'group' || state.view === 'bulk';
+  const isSub = state.view === 'detail' || state.view === 'group' || state.view === 'bulk'
+    || state.view === 'fixpnl';
   document.getElementById('bottom-nav').classList.toggle('hidden', isSub);
   // Home ha i suoi pulsanti account; Impostazioni è account-agnostica
   document.getElementById('account-tabs').classList.toggle('hidden', isSub || state.view === 'settings' || state.view === 'home');
@@ -3900,6 +3957,95 @@ function renderDraftBlock() {
   box.querySelectorAll('[data-deldraft]').forEach(b => {
     b.onclick = () => deleteDraft(parseInt(b.dataset.deldraft));
   });
+}
+
+// Trade il cui P&L è stimato invece che registrato, dal conto attivo
+function estimatedTrades() {
+  return tradesForCurrentAccount()
+    .filter(t => !hasRealPnl(t))
+    .sort(chronoCompare);
+}
+
+// Schermata per sostituire le stime con i risultati veri, uno dopo l'altro.
+// Mostra quanto Doji sta assumendo, così si vede subito quale è sballato.
+function renderFixPnl() {
+  const acc = currentAccount();
+  const list = document.getElementById('fixpnl-list');
+  const sub = document.getElementById('fixpnl-sub');
+  const intro = document.getElementById('fixpnl-intro');
+  const arr = estimatedTrades();
+  const tutti = tradesForCurrentAccount().sort(chronoCompare);
+
+  sub.textContent = `${acc.name} · ${arr.length} su ${tutti.length} trade`;
+
+  if (arr.length === 0) {
+    intro.innerHTML = '';
+    list.innerHTML = '<div class="empty">Nessun P&L stimato: i totali di questo conto sono tutti basati su importi reali.</div>';
+    return;
+  }
+
+  // Quanto pesa complessivamente la parte incerta
+  let cap = acc.capital, stimato = 0;
+  accountTimeline(tutti, acc.id).forEach(ev => {
+    if (ev.adj) { cap += ev.adj.amount; return; }
+    const p = pnlWithBase(ev.trade, cap, acc);
+    if (!hasRealPnl(ev.trade)) stimato += p;
+    cap += p;
+  });
+  intro.innerHTML = `Questi trade non hanno un risultato in dollari: Doji lo <b>stima</b> da R × rischio %, ed è per questo che il totale può non coincidere con l'exchange.
+    In tutto pesano <b>${stimato >= 0 ? '+' : ''}$${stimato.toFixed(2)}</b>.
+    Scrivi l'importo vero e diventa un dato fisso.`;
+
+  list.innerHTML = arr.map(t => {
+    const assunto = pnlWithBase(t, capitalAtTrade(t, tutti, acc), acc);
+    const segno = assunto > 0 ? 'val-pos' : assunto < 0 ? 'val-neg' : 'val-zero';
+    const isBe = t.outcome === 'be';
+    return `
+      <div class="fix-row" data-fix="${t.id}">
+        <div class="fix-top">
+          <span class="fix-n">#${t.n}</span>
+          <span class="fix-dir ${t.direction}">${t.direction.toUpperCase()}</span>
+          <span class="fix-asset">${escapeHtml(t.asset || '—')}</span>
+          <span class="fix-ts">${t.ts}</span>
+        </div>
+        <div class="fix-meta">
+          ${escapeHtml(t.setup || '—')} · ${t.outcome ? t.outcome.toUpperCase() : '—'} ${t.rr_actual >= 0 ? '+' : ''}${t.rr_actual}R
+          · Doji assume <span class="${segno}">${assunto >= 0 ? '+' : ''}$${assunto.toFixed(2)}</span>
+        </div>
+        <div class="fix-input-row">
+          <span class="fix-label">${isBe ? '$ di costo (fee)' : (t.rr_actual < 0 ? '$ perso' : '$ guadagnato')}</span>
+          <input type="number" class="input fix-input" data-fixinput="${t.id}"
+                 placeholder="${Math.abs(assunto).toFixed(2)}" step="0.01" min="0" inputmode="decimal">
+          <button class="fix-save" data-fixsave="${t.id}">Salva</button>
+        </div>
+      </div>`;
+  }).join('');
+
+  list.querySelectorAll('[data-fixsave]').forEach(btn => {
+    btn.onclick = () => salvaPnlReale(parseInt(btn.dataset.fixsave));
+  });
+  // Invio da tastiera = salva
+  list.querySelectorAll('[data-fixinput]').forEach(inp => {
+    inp.onkeydown = e => { if (e.key === 'Enter') salvaPnlReale(parseInt(inp.dataset.fixinput)); };
+  });
+}
+
+// Fissa il risultato reale in dollari su un trade finora stimato
+async function salvaPnlReale(id) {
+  const t = state.trades.find(x => x.id === id);
+  if (!t) return;
+  const inp = document.querySelector(`[data-fixinput="${id}"]`);
+  if (!inp || inp.value === '') { showToast('Scrivi l\'importo', 'error'); return; }
+  const v = Math.abs(parseFloat(inp.value));
+  if (!Number.isFinite(v)) { showToast('Importo non valido', 'error'); return; }
+  // Il segno lo decide l'esito, non chi scrive: sul BE è sempre un costo
+  t.pnl_dollar = (t.outcome === 'be' || t.rr_actual < 0) ? -v : v;
+  stampEdit(t);
+  try {
+    await dbPut(TRADES_STORE, t);
+    showToast(`✓ #${t.n}: ${t.pnl_dollar >= 0 ? '+' : ''}$${t.pnl_dollar.toFixed(2)}`, 'success');
+    render();
+  } catch (e) { showToast('Errore salvataggio', 'error'); console.error(e); }
 }
 
 // Trade dello Storico filtrati per periodo (filtro indipendente dalle Stats)
@@ -4480,7 +4626,7 @@ function renderStats() {
         <div class="stat-sub">vinte / perse</div>
       </div>
       <div class="stat-box">
-        <div class="stat-label">P&amp;L${s.nStimati > 0 ? ' <span class="pnl-stimato">' + s.nStimati + ' stimati</span>' : ''}</div>
+        <div class="stat-label">P&amp;L${s.nStimati > 0 ? ' <button class="pnl-stimato pnl-stimato-btn" id="go-fixpnl">' + s.nStimati + ' stimati ›</button>' : ''}</div>
         <div class="stat-value ${s.pnlDollar > 0 ? 'val-pos' : s.pnlDollar === 0 ? 'val-zero' : 'val-neg'}">${pnlSign}$${s.pnlDollar.toFixed(0)}</div>
         <div class="stat-sub">ROI account ${roiSign}${s.roi.toFixed(1)}% · ROI rischiato ${s.roiRisked >= 0 ? '+' : ''}${s.roiRisked.toFixed(1)}%</div>
       </div>
@@ -4569,6 +4715,10 @@ function renderStats() {
 
   const reportBtn = document.getElementById('copy-report-btn');
   if (reportBtn) reportBtn.onclick = copyReport;
+
+  // Il conteggio dei P&L stimati porta alla schermata per sistemarli
+  const fixBtn = document.getElementById('go-fixpnl');
+  if (fixBtn) fixBtn.onclick = () => navOpen('fixpnl');
 
   container.querySelectorAll('[data-group-dim]').forEach(row => {
     row.onclick = () => {
@@ -5331,6 +5481,7 @@ function bindEvents() {
   };
   document.getElementById('detail-back-btn').onclick = () => navBack();
   document.getElementById('group-back-btn').onclick = () => navBack();
+  document.getElementById('fixpnl-back-btn').onclick = () => navBack();
   document.getElementById('open-bulk-btn').onclick = () => navOpen('bulk');
   document.getElementById('bulk-back-btn').onclick = () => navBack();
 
