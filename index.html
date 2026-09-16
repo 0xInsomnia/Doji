@@ -2090,7 +2090,14 @@ function syncRiskFields() {
       if (!isNaN(pct) && f.risk_pct !== '') {
         const result = (pct / 100 * cap) * R;
         f.result_dollar = result.toFixed(2);
-        if (dolEl && document.activeElement !== dolEl) dolEl.value = f.result_dollar;
+        // Il valore calcolato va nel PLACEHOLDER, non nel campo: scriverlo come
+        // valore lo faceva sembrare un dato registrato, e non lo era. Chi apriva
+        // un trade stimato vedeva un importo "giusto", salvava, e restava stimato
+        // senza capire perché. Grigio = suggerimento; nero = dato tuo.
+        if (dolEl && document.activeElement !== dolEl) {
+          dolEl.value = '';
+          dolEl.placeholder = result.toFixed(2);
+        }
       }
     }
   }
@@ -4549,9 +4556,9 @@ function renderDetail() {
           <div class="detail-field-value">${riskedDisplay}</div>
         </div>
         <div class="detail-grid-full">
-          <div class="detail-field-label">P&amp;L $ di questo trade${hasRealPnl(t) ? '' : ' <span class="pnl-stimato">stimato</span>'}</div>
+          <div class="detail-field-label">P&amp;L $ di questo trade${hasRealPnl(t) ? '' : ' <button class="pnl-stimato pnl-stimato-btn" id="detail-fixpnl">stimato ›</button>'}</div>
           <div class="detail-field-value big ${valCls}">${pnlSign}$${pnlSingle.toFixed(2)}</div>
-          ${hasRealPnl(t) ? '' : '<div class="hint">Calcolato da R × rischio %: non è il risultato reale. Modifica il trade e scrivi il risultato in $ per fissarlo.</div>'}
+          ${hasRealPnl(t) ? '' : '<div class="hint">Questo importo è calcolato da R × rischio %, non è il risultato reale che hai avuto. Tocca "stimato" per scrivere quello vero.</div>'}
         </div>
       </div>
     </div>
@@ -4575,6 +4582,9 @@ function renderDetail() {
   document.getElementById('detail-edit-btn').onclick = () => {
     startEdit(t.id);
   };
+  // Dal marcatore "stimato" si va dritti alla schermata per scrivere l'importo vero
+  const fixBtn = document.getElementById('detail-fixpnl');
+  if (fixBtn) fixBtn.onclick = () => navOpen('fixpnl');
   document.getElementById('detail-delete-btn').onclick = () => {
     if (confirm('Eliminare questo trade?\n\nL\'azione è irreversibile.')) {
       const idToDelete = t.id;
