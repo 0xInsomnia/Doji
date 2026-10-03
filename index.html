@@ -501,6 +501,30 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
 }
 .history-reset:active { background: var(--surface-alt); }
 .hint.hint-stima { color: var(--text-muted); font-style: italic; }
+.import-badge {
+  font-family: var(--font-mono); font-size: 8.5px; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted);
+  border: 1px dashed var(--text-muted); border-radius: 3px;
+  padding: 1px 4px; margin-left: 6px; white-space: nowrap;
+}
+.filter-todo {
+  flex: 0 0 auto; padding: 0 11px; cursor: pointer;
+  background: var(--surface); color: var(--text-dim);
+  border: 1px solid var(--border-subtle); border-radius: var(--radius);
+  font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.filter-todo.active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+.fee-editor {
+  margin-top: 10px; padding: 11px 12px;
+  background: var(--surface-alt); border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+}
+.fee-editor-title {
+  font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--text-dim); margin-bottom: 9px;
+}
 .fixpnl-intro {
   background: var(--surface-alt); border: 1px solid var(--border-subtle);
   border-radius: var(--radius); padding: 11px 13px; margin-bottom: 14px;
@@ -1822,6 +1846,9 @@ const DEFAULT_CONFIG = {
   theme: 'editorial',
   current_account_id: 'acc1',
   haptics: true, // feedback tattile (vibrazione) sui tap — Android
+  // Fee pagate all'exchange per conto: { accId: {commissioni, funding, totale, periodo, fonte} }
+  // Informative: già comprese nel P&L dei trade, non si sottraggono mai altrove.
+  fees: {},
 };
 
 // Feedback tattile: vibra se abilitato e supportato (Android; iOS non supporta).
@@ -1843,7 +1870,7 @@ const state = {
   view: 'home', // vista di apertura: la Home (logo, tasti rapidi account, P&L)
   form: makeEmptyForm(),
   filters: { dateRange: 'all', asset: 'all', setup: 'all', tag: 'all', direction: 'all', context: 'all', timeframe: 'all' }, // filtri delle Stats
-  historyFilter: { dateRange: 'all' }, // filtro dello Storico (indipendente): solo periodo
+  historyFilter: { dateRange: 'all', todo: false }, // filtro dello Storico (indipendente): periodo + "da completare"
   editingId: null,
   // Modalità del form: 'draft' = registro il piano prima di entrare,
   // 'closed' = registro un trade già chiuso (via diretta), 'complete' =
@@ -2485,6 +2512,31 @@ function pnlWithBase(t, capBefore, acc) {
   if (t.risk_amount != null) return t.rr_actual * t.risk_amount;
   const base = t.capital_used != null ? t.capital_used : capBefore;
   return t.rr_actual * (t.risk_pct || acc.risk_pct) / 100 * base;
+}
+
+// ── Fee pagate all'exchange ──
+// Dato PURAMENTE INFORMATIVO: le fee sono già dentro il pnl_dollar di ogni
+// trade, quindi non vanno MAI sottratte da capitale, P&L, equity o expectancy.
+// Serve solo a vedere quanto ti costa l'attrito.
+function feesForAccount(accId) {
+  const f = (state.config.fees || {})[accId];
+  if (!f) return null;
+  const commissioni = Number(f.commissioni) || 0;
+  const funding = Number(f.funding) || 0;
+  return {
+    commissioni, funding,
+    // Il totale è sempre ricalcolato: non ci si fida di un campo salvato
+    totale: commissioni + funding,
+    periodo: f.periodo || '',
+    fonte: f.fonte || '',
+  };
+}
+
+// Trade arrivato da un import dell'exchange e non ancora completato a mano.
+// Il segnale sparisce da solo appena gli dai un setup: è quello il lavoro
+// che l'import non può fare al posto tuo.
+function needsCompletion(t) {
+  return !!t.imported_from && !t.setup;
 }
 
 // Il P&L si basa su un dato inserito a mano (non su una stima)?
@@ -4058,6 +4110,7 @@ async function salvaPnlReale(id) {
 // Trade dello Storico filtrati per periodo (filtro indipendente dalle Stats)
 function historyFilteredTrades() {
   let arr = tradesForCurrentAccount();
+  if (state.historyFilter.todo) arr = arr.filter(needsCompletion);
   const r = state.historyFilter.dateRange;
   if (r !== 'all') {
     const days = r === '30' ? 30 : r === '90' ? 90 : 0;
@@ -4073,13 +4126,18 @@ function renderHistory() {
   // Storico: unico filtro "periodo", indipendente dalle Stats
   const fbar = document.getElementById('history-filters');
   const hr = state.historyFilter.dateRange;
+  // Il filtro "da completare" compare solo se ci sono davvero trade importati
+  const nDaCompletare = tradesForCurrentAccount().filter(needsCompletion).length;
   fbar.innerHTML = `
     <select class="filter-select" id="history-date" style="flex:1;">
       <option value="all"${hr==='all'?' selected':''}>Tutte le date</option>
       <option value="30"${hr==='30'?' selected':''}>Ultimi 30 giorni</option>
       <option value="90"${hr==='90'?' selected':''}>Ultimi 90 giorni</option>
-    </select>`;
+    </select>
+    ${nDaCompletare > 0 ? `<button class="filter-todo${state.historyFilter.todo ? ' active' : ''}" id="history-todo">da completare (${nDaCompletare})</button>` : ''}`;
   document.getElementById('history-date').onchange = e => { state.historyFilter.dateRange = e.target.value; render(); };
+  const todoBtn = document.getElementById('history-todo');
+  if (todoBtn) todoBtn.onclick = () => { state.historyFilter.todo = !state.historyFilter.todo; render(); };
 
   // Bozze aperte: sempre in cima e sempre visibili, il filtro periodo non le
   // tocca (sono operazioni in corso, non storia)
@@ -4087,7 +4145,7 @@ function renderHistory() {
 
   const list = document.getElementById('trades-list');
   const summary = document.getElementById('history-summary');
-  const filtered = hr !== 'all';
+  const filtered = hr !== 'all' || !!state.historyFilter.todo;
   const trades = historyFilteredTrades();
   const totalTrades = tradesForCurrentAccount().length;
   // Le rettifiche compaiono solo senza filtro periodo
@@ -4103,10 +4161,16 @@ function renderHistory() {
     summary.innerHTML = `<span><b>${totalTrades}</b> trade</span>`;
   }
   const resetBtn = document.getElementById('history-reset');
-  if (resetBtn) resetBtn.onclick = () => { state.historyFilter.dateRange = 'all'; render(); };
+  if (resetBtn) resetBtn.onclick = () => {
+    state.historyFilter.dateRange = 'all';
+    state.historyFilter.todo = false;
+    render();
+  };
 
   if (trades.length === 0 && adjs.length === 0) {
-    list.innerHTML = '<div class="empty">' + (state.loading ? '…' : (filtered ? 'nessun trade nel periodo' : 'nessun trade ancora')) + '</div>';
+    list.innerHTML = '<div class="empty">' + (state.loading ? '…'
+      : (state.historyFilter.todo ? 'nessun trade importato da completare'
+      : (filtered ? 'nessun trade nel periodo' : 'nessun trade ancora'))) + '</div>';
     return;
   }
   // Timeline unica (trade filtrati + rettifiche), più recente in cima
@@ -4352,7 +4416,7 @@ function buildTradeRows(list, trades, detailFrom) {
       <div class="trade-n">#${t.n}</div>
       <div class="trade-dir ${t.direction}">${t.direction.toUpperCase()}</div>
       <div class="trade-asset">${escapeHtml(t.asset || '—')}</div>
-      <div class="trade-setup">${escapeHtml(t.setup || '—')}</div>
+      <div class="trade-setup">${escapeHtml(t.setup || '—')}${needsCompletion(t) ? '<span class="import-badge">importato</span>' : ''}</div>
       <div class="trade-rr ${valCls}">${valSign}${t.rr_actual}R</div>
       <div class="trade-ts">${t.ts}</div>
       ${(t.tags && t.tags.length) ? `<div class="trade-tags">${t.tags.map(tg => `<span class="tag-pill">${escapeHtml(tg)}</span>`).join('')}</div>` : ''}
@@ -4645,6 +4709,21 @@ function renderStats() {
         <div class="stat-value small">${s.avgRRPlanned.toFixed(2)} / <span class="${s.avgRRActual >= 0 ? 'val-pos' : 'val-neg'}">${s.avgRRActual >= 0 ? '+' : ''}${s.avgRRActual.toFixed(2)}</span></div>
         <div class="stat-sub">media R</div>
       </div>
+      ${(() => {
+        // Card fee: compare solo se il conto ha il dato, e non altera nulla
+        const fee = feesForAccount(acc.id);
+        if (!fee) return '';
+        const fSign = fee.funding >= 0 ? '' : '−';
+        const parti = [`commissioni $${fee.commissioni.toFixed(2)}`,
+          `funding ${fSign}$${Math.abs(fee.funding).toFixed(2)}`];
+        if (fee.periodo) parti.push(escapeHtml(fee.periodo));
+        return `
+      <div class="stat-box">
+        <div class="stat-label">Fee pagate</div>
+        <div class="stat-value">$${fee.totale.toFixed(0)}</div>
+        <div class="stat-sub">${parti.join(' · ')}</div>
+      </div>`;
+      })()}
       <div class="stat-box">
         <div class="stat-label">TP pieno / SL contenuto</div>
         <div class="stat-value small">${s.tpResp != null ? `<span class="${s.tpResp >= 0.6 ? 'val-pos' : 'val-neg'}">${(s.tpResp*100).toFixed(0)}%</span>` : `<span class="val-zero">—</span>`} / ${s.slResp != null ? `<span class="${s.slResp >= 0.8 ? 'val-pos' : 'val-neg'}">${(s.slResp*100).toFixed(0)}%</span>` : `<span class="val-zero">—</span>`}</div>
@@ -4756,6 +4835,11 @@ function buildReport() {
   L.push(`=== ACCOUNT: ${acc.name} — generato il ${new Date().toLocaleDateString('it-IT')} ===`);
   L.push(`Capitale: iniziale $${acc.capital.toFixed(0)} → attuale $${curCap.toFixed(0)}`);
   L.push(`P&L totale: ${s.pnlDollar >= 0 ? '+' : ''}$${s.pnlDollar.toFixed(0)} (ROI account ${s.roi >= 0 ? '+' : ''}${s.roi.toFixed(1)}%, ROI sul rischiato ${s.roiRisked >= 0 ? '+' : ''}${s.roiRisked.toFixed(1)}%)`);
+  const feeRep = feesForAccount(acc.id);
+  if (feeRep) {
+    const fFmt = (feeRep.funding < 0 ? '−$' : '$') + Math.abs(feeRep.funding).toFixed(2);
+    L.push(`Fee pagate (già incluse nel P&L): $${feeRep.totale.toFixed(2)} (commissioni $${feeRep.commissioni.toFixed(2)}, funding ${fFmt}${feeRep.funding < 0 ? ' = incassato' : ''}${feeRep.periodo ? `, periodo ${feeRep.periodo}` : ''})`);
+  }
   L.push('');
   L.push(`PERFORMANCE (${s.total} trade)`);
   L.push(`- Win rate: ${(s.winRate * 100).toFixed(0)}%  (${s.nWin} win · ${s.nPartial} parziali · ${s.nBe} BE · ${s.nLoss} loss)`);
@@ -5148,6 +5232,31 @@ function renderSettings() {
           <input class="input" type="number" value="${a.risk_pct}" min="0" step="0.1" inputmode="decimal" data-acc-risk="${a.id}">
         </div>
       </div>
+      <div class="fee-editor">
+        <div class="fee-editor-title">Fee pagate all'exchange${(() => {
+          const f = feesForAccount(a.id);
+          return f ? ` · totale <b>$${f.totale.toFixed(2)}</b>` : '';
+        })()}</div>
+        <div class="field-row">
+          <div class="field-col">
+            <span class="field-label">Commissioni $</span>
+            <input class="input" type="number" step="0.01" inputmode="decimal" placeholder="0"
+                   value="${((state.config.fees||{})[a.id]||{}).commissioni ?? ''}" data-fee-comm="${a.id}">
+          </div>
+          <div class="field-col">
+            <span class="field-label">Funding $</span>
+            <input class="input" type="number" step="0.01" inputmode="decimal" placeholder="0"
+                   value="${((state.config.fees||{})[a.id]||{}).funding ?? ''}" data-fee-fund="${a.id}">
+          </div>
+        </div>
+        <div class="field">
+          <span class="field-label">Periodo</span>
+          <input class="input" type="text" placeholder="es. mag–set 2026"
+                 value="${escapeHtml(((state.config.fees||{})[a.id]||{}).periodo || '')}" data-fee-per="${a.id}">
+        </div>
+        <div class="hint">Dato informativo: le fee sono già dentro il P&L dei trade, quindi non vengono sottratte una seconda volta da capitale o statistiche. Funding negativo = incassato.</div>
+      </div>
+
       <button class="btn-secondary" style="width:100%; font-size:11px; margin-top:8px;" data-adj-toggle="${a.id}">⚖ Rettifica capitale${nAdj > 0 ? ` (${nAdj})` : ''}</button>
       <div class="adj-form ${state.adjFormAcc === a.id ? '' : 'hidden'}">
         <div class="field-row">
@@ -5170,6 +5279,36 @@ function renderSettings() {
     `;
     accBox.appendChild(card);
   });
+  // Fee: scrivono in config.fees[accId]. Il totale è sempre derivato, mai
+  // digitato, così non può divergere dalle due voci che lo compongono.
+  const scriviFee = async (accId, campo, valore) => {
+    state.config.fees = state.config.fees || {};
+    const cur = state.config.fees[accId] || {};
+    const next = { ...cur, [campo]: valore };
+    const comm = Number(next.commissioni) || 0;
+    const fund = Number(next.funding) || 0;
+    next.totale = comm + fund;
+    // Se non resta nulla di significativo, togli la voce: la card sparisce
+    const vuoto = (next.commissioni === '' || next.commissioni == null)
+      && (next.funding === '' || next.funding == null)
+      && !next.periodo;
+    if (vuoto) delete state.config.fees[accId];
+    else state.config.fees[accId] = next;
+    await saveConfig();
+    render();
+  };
+  accBox.querySelectorAll('[data-fee-comm]').forEach(inp => {
+    inp.onchange = () => scriviFee(inp.dataset.feeComm, 'commissioni',
+      inp.value === '' ? '' : parseFloat(inp.value) || 0);
+  });
+  accBox.querySelectorAll('[data-fee-fund]').forEach(inp => {
+    inp.onchange = () => scriviFee(inp.dataset.feeFund, 'funding',
+      inp.value === '' ? '' : parseFloat(inp.value) || 0);
+  });
+  accBox.querySelectorAll('[data-fee-per]').forEach(inp => {
+    inp.onchange = () => scriviFee(inp.dataset.feePer, 'periodo', inp.value.trim());
+  });
+
   // Listener accounts
   accBox.querySelectorAll('[data-acc-name]').forEach(inp => {
     inp.onchange = async (e) => {
