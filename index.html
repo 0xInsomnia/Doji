@@ -192,6 +192,13 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
   font-weight: 600;
   line-height: 1.45;
 }
+/* Preavviso: stesso posto del banner pieno, ma non urla — non sei ancora fuori */
+.tilt-banner.tilt-banner-soft {
+  background: var(--surface-alt);
+  color: var(--text);
+  border: 1px dashed var(--text-dim);
+  font-weight: 500;
+}
 [data-mono="true"] .tilt-banner {
   background: transparent;
   color: var(--text);
@@ -1849,6 +1856,9 @@ const DEFAULT_CONFIG = {
   // Fee pagate all'exchange per conto: { accId: {commissioni, funding, totale, periodo, fonte} }
   // Informative: già comprese nel P&L dei trade, non si sottraggono mai altrove.
   fees: {},
+  // Tetto di perdita giornaliero per conto: { accId: {maxR, maxUSD} }
+  // Assente = 2R e nessun tetto in dollari.
+  daily_loss: {},
 };
 
 // Feedback tattile: vibra se abilitato e supportato (Android; iOS non supporta).
@@ -1929,46 +1939,79 @@ function deriveOutcome(t) {
   return 'partial';
 }
 
-// ---- Banner anti-tilt ----
-// Stato di "tilt" della giornata su TUTTI gli account: stop consecutivi in coda + denaro perso oggi.
-// Il "giorno" è la data locale del telefono: a mezzanotte la data cambia e il conteggio riparte da solo.
-function todayTiltState() {
-  const today = new Date().toLocaleDateString('it-IT');
-  const todays = state.trades
-    .filter(t => t.ts === today)
-    .sort((a, b) => a.iso.localeCompare(b.iso));
-  let streak = 0;
-  for (let i = todays.length - 1; i >= 0; i--) {
-    if (todays[i].rr_actual < 0) streak++;
-    else break;
-  }
-  // Cache: trade ordinati per account (per calcolare il capitale al momento del trade)
-  const sortedByAcc = {};
-  let lossToday = 0;
-  todays.forEach(t => {
-    const acc = state.config.accounts.find(a => a.id === t.account_id) || currentAccount();
-    if (!sortedByAcc[t.account_id]) {
-      sortedByAcc[t.account_id] = state.trades
-        .filter(x => x.account_id === t.account_id)
-        .sort(chronoCompare);
-    }
-    const pnl = tradePnlDollar(t, sortedByAcc[t.account_id], acc);
-    if (pnl < 0) lossToday += -pnl;
+// ---- Tetto di perdita giornaliero ----
+// Sostituisce la vecchia regola "2 stop consecutivi", che aveva un buco:
+// contava solo le strisce di stop, quindi una giornata fatta di uscite
+// manuali in perdita non la faceva scattare mai. Qui conta TUTTO il chiuso
+// di oggi, e ogni account ha il suo tetto — non si sommano mai fra loro.
+
+// Giorno locale del telefono, ricavato dalla data del trade
+function localDayKey(d) {
+  return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+}
+
+// Tetto configurato per un conto. Default: 2R, nessun tetto in dollari.
+function dailyLossConfig(accId) {
+  const c = (state.config.daily_loss || {})[accId] || {};
+  const r = Number(c.maxR);
+  const usd = Number(c.maxUSD);
+  return {
+    maxR: (c.maxR === '' || c.maxR == null || !Number.isFinite(r) || r <= 0) ? 2 : r,
+    maxUSD: (c.maxUSD === '' || c.maxUSD == null || !Number.isFinite(usd) || usd <= 0) ? null : usd,
+  };
+}
+
+// Stato della giornata per UN conto. Somma i trade chiusi di oggi: i vincenti
+// compensano, quindi il tetto misura il risultato netto, non il numero di stop.
+// Le bozze e i trade senza esito non entrano (state.trades è già solo chiusi,
+// il controllo su outcome resta per i record importati incompleti).
+function dailyLossState(accId) {
+  const acc = state.config.accounts.find(a => a.id === accId) || currentAccount();
+  const cfg = dailyLossConfig(accId);
+  const oggi = localDayKey(new Date());
+  const sorted = state.trades.filter(t => t.account_id === accId).sort(chronoCompare);
+  const todays = sorted.filter(t => {
+    if (!t.outcome || !t.iso) return false;
+    const d = new Date(t.iso);
+    return !isNaN(d.getTime()) && localDayKey(d) === oggi;
   });
-  return { streak, lossToday };
+
+  let lossR = 0, lossUSD = 0, nLosers = 0;
+  todays.forEach(t => {
+    lossR += Number(t.rr_actual) || 0;
+    lossUSD += tradePnlDollar(t, sorted, acc);
+    if (t.rr_actual < 0) nLosers++;
+  });
+
+  const reachedR = lossR <= -cfg.maxR;
+  const reachedUSD = cfg.maxUSD != null && lossUSD <= -cfg.maxUSD;
+  const reached = reachedR || reachedUSD;
+  // Preavviso a tre quarti del tetto: c'è ancora margine per un solo stop
+  const warning = !reached && lossR <= -(cfg.maxR * 0.75);
+
+  return { lossR, lossUSD, nLosers, n: todays.length,
+    maxR: cfg.maxR, maxUSD: cfg.maxUSD, reachedR, reachedUSD, reached, warning };
 }
 
 // ── Controllo preventivo: scatta PRIMA dell'entrata, non dopo ──
 // È la ragione per cui esiste la fase 1: finché i trade si registravano solo
 // da chiusi, l'avviso arrivava sempre a danno fatto. Qui invece il momento
 // del piano è l'ultimo istante utile per fermarsi.
-// Conta solo trade CHIUSI con R negativo (state.trades è già solo chiusi).
 function draftGateWarning() {
-  const tilt = todayTiltState();
-  if (tilt.streak >= 2) {
+  const d = dailyLossState(state.config.current_account_id);
+  if (d.reached) {
+    const perche = d.reachedR
+      ? `${fmtR(d.lossR)} oggi (tetto ${d.maxR}R)`
+      : `${fmtUSD(d.lossUSD)} oggi (tetto $${d.maxUSD})`;
     return {
-      title: `${tilt.streak} stop di fila oggi`,
-      body: `Hai perso $${Math.round(tilt.lossToday)} nella giornata.\n\nStai per pianificare un altro trade.`,
+      title: 'Stop giornaliero raggiunto',
+      body: `Sei a ${perche}.\n\nPer oggi avevi finito.`,
+    };
+  }
+  if (d.warning) {
+    return {
+      title: `Sei a ${fmtR(d.lossR)} oggi`,
+      body: `Il tuo tetto è ${d.maxR}R: ancora uno stop e chiudi la giornata.`,
     };
   }
   // Troppi piani aperti insieme: segnale di sovra-operatività
@@ -1981,6 +2024,34 @@ function draftGateWarning() {
   }
   return null;
 }
+
+// Giorni in cui il tetto giornaliero è stato superato, per un conto.
+// Serve al report: dice se la regola viene rispettata o solo scritta.
+function daysOverDailyLoss(accId) {
+  const acc = state.config.accounts.find(a => a.id === accId) || currentAccount();
+  const cfg = dailyLossConfig(accId);
+  const sorted = state.trades.filter(t => t.account_id === accId).sort(chronoCompare);
+  const perGiorno = {};
+  sorted.forEach(t => {
+    if (!t.outcome || !t.iso) return;
+    const d = new Date(t.iso);
+    if (isNaN(d.getTime())) return;
+    const k = localDayKey(d);
+    if (!perGiorno[k]) perGiorno[k] = { lossR: 0, lossUSD: 0, data: d.toLocaleDateString('it-IT') };
+    perGiorno[k].lossR += Number(t.rr_actual) || 0;
+    perGiorno[k].lossUSD += tradePnlDollar(t, sorted, acc);
+  });
+  const chiavi = Object.keys(perGiorno).sort();
+  const giorni = chiavi
+    .filter(k => perGiorno[k].lossR <= -cfg.maxR
+      || (cfg.maxUSD != null && perGiorno[k].lossUSD <= -cfg.maxUSD))
+    .map(k => perGiorno[k]);
+  return { giorni, giorniTotali: chiavi.length };
+}
+
+// Formattatori condivisi dai banner
+function fmtR(r) { return `${r >= 0 ? '+' : '−'}${Math.abs(r).toFixed(2)}R`; }
+function fmtUSD(v) { return `${v >= 0 ? '+' : '−'}$${Math.abs(v).toFixed(2)}`; }
 
 function moneyTier(loss) {
   if (loss < 20) return 'low';
@@ -2043,12 +2114,24 @@ const TILT_MSGS = {
   },
 };
 
-function tiltBannerText(streak, lossToday) {
-  const money = '$' + Math.round(lossToday);
-  const sKey = streak >= 4 ? 't4' : (streak === 3 ? 't3' : 't2');
-  const pool = TILT_MSGS[sKey][moneyTier(lossToday)];
-  const idx = (streak * 7 + Math.round(lossToday)) % pool.length;
-  return pool[idx].replace(/\$X/g, money);
+// Testo del banner per lo stop giornaliero.
+// La prima riga dice il fatto; la seconda è la frecciata, pescata dai messaggi
+// esistenti. Il tier si sceglie dal numero REALE di trade in perdita di oggi,
+// non dalla gravità in R: quei testi parlano di "due stop", "tre di fila", e
+// devono restare veri. Con meno di due perdite resta solo il fatto.
+function dailyLossBannerText(d) {
+  const perso = Math.abs(d.lossUSD);
+  const riga1 = `Stop giornaliero raggiunto: ${fmtR(d.lossR)} / ${fmtUSD(d.lossUSD)} oggi. Per oggi hai finito.`;
+  if (d.nLosers < 2) return riga1;
+  const sKey = d.nLosers >= 4 ? 't4' : (d.nLosers === 3 ? 't3' : 't2');
+  const pool = TILT_MSGS[sKey][moneyTier(perso)];
+  const idx = (d.nLosers * 7 + Math.round(perso)) % pool.length;
+  return riga1 + ' — ' + pool[idx].replace(/\$X/g, '$' + Math.round(perso));
+}
+
+// Preavviso: sei vicino al tetto ma non ci sei ancora
+function dailyLossWarningText(d) {
+  return `Sei a ${fmtR(d.lossR)} oggi. Ancora uno stop e chiudi la giornata.`;
 }
 
 // Deriva tp_respected/sl_respected da outcome (per stats backward-compat)
@@ -3632,10 +3715,16 @@ function render() {
   // Banner anti-tilt (solo in inserimento nuovo trade, non in modifica)
   const tiltBanner = document.getElementById('tilt-banner');
   if (tiltBanner) {
-    const tilt = todayTiltState();
+    const d = dailyLossState(state.config.current_account_id);
     const openDrafts = draftsForCurrentAccount().length;
-    if (!state.editingId && tilt.streak >= 2) {
-      tiltBanner.textContent = tiltBannerText(tilt.streak, tilt.lossToday);
+    tiltBanner.classList.remove('tilt-banner-soft');
+    if (!state.editingId && d.reached) {
+      tiltBanner.textContent = dailyLossBannerText(d);
+      tiltBanner.classList.remove('hidden');
+    } else if (!state.editingId && d.warning) {
+      // Preavviso: stesso posto, tono più leggero
+      tiltBanner.textContent = dailyLossWarningText(d);
+      tiltBanner.classList.add('tilt-banner-soft');
       tiltBanner.classList.remove('hidden');
     } else if (!state.editingId && state.formMode === 'draft' && openDrafts >= 3) {
       // Non è tilt da perdite ma da quantità: lo dice senza girarci intorno
@@ -3864,7 +3953,7 @@ function renderLog() {
 //  HOME (vista di apertura): logo watermark, avviso anti-tilt,
 //  tasti rapidi per aggiungere un trade su ciascun conto,
 //  P&L del mese di tutti i conti. Nessuna logica nuova: riusa
-//  todayTiltState, tradePnlDollar e currentCapital.
+//  dailyLossState, tradePnlDollar e currentCapital.
 // ============================================================
 function renderHome() {
   const box = document.getElementById('home-content');
@@ -3872,10 +3961,12 @@ function renderHome() {
   const valCls = v => v > 0 ? 'val-pos' : v < 0 ? 'val-neg' : 'val-zero';
 
   // Avviso anti-tilt: in cima, sopra tutto
-  const tilt = todayTiltState();
-  const tiltHtml = tilt.streak >= 2
-    ? `<div class="tilt-banner">${tiltBannerText(tilt.streak, tilt.lossToday)}</div>`
-    : '';
+  const dl = dailyLossState(state.config.current_account_id);
+  const tiltHtml = dl.reached
+    ? `<div class="tilt-banner">${escapeHtml(dailyLossBannerText(dl))}</div>`
+    : (dl.warning
+      ? `<div class="tilt-banner tilt-banner-soft">${escapeHtml(dailyLossWarningText(dl))}</div>`
+      : '');
 
   // Piani aperti: richiamo in Home, la vista dove si atterra
   const nDrafts = draftsForCurrentAccount().length;
@@ -4835,6 +4926,18 @@ function buildReport() {
   L.push(`=== ACCOUNT: ${acc.name} — generato il ${new Date().toLocaleDateString('it-IT')} ===`);
   L.push(`Capitale: iniziale $${acc.capital.toFixed(0)} → attuale $${curCap.toFixed(0)}`);
   L.push(`P&L totale: ${s.pnlDollar >= 0 ? '+' : ''}$${s.pnlDollar.toFixed(0)} (ROI account ${s.roi >= 0 ? '+' : ''}${s.roi.toFixed(1)}%, ROI sul rischiato ${s.roiRisked >= 0 ? '+' : ''}${s.roiRisked.toFixed(1)}%)`);
+  // Rispetto dello stop giornaliero: quante volte è stato sfondato.
+  // Si guardano TUTTI i trade chiusi del conto, raggruppati per giorno locale.
+  const sfori = daysOverDailyLoss(acc.id);
+  const cfgDl = dailyLossConfig(acc.id);
+  const tettoTxt = `${cfgDl.maxR}R${cfgDl.maxUSD != null ? ` / $${cfgDl.maxUSD}` : ''}`;
+  if (sfori.giorniTotali > 0) {
+    const dettaglio = sfori.giorni.length
+      ? ` (${sfori.giorni.slice(0, 12).map(g => `${g.data} ${fmtR(g.lossR)}`).join(', ')}${sfori.giorni.length > 12 ? ', …' : ''})`
+      : '';
+    L.push(`Giorni in cui è stato superato lo stop giornaliero (tetto ${tettoTxt}): ${sfori.giorni.length} su ${sfori.giorniTotali} giorni operativi${dettaglio}`);
+  }
+
   const feeRep = feesForAccount(acc.id);
   if (feeRep) {
     const fFmt = (feeRep.funding < 0 ? '−$' : '$') + Math.abs(feeRep.funding).toFixed(2);
@@ -5233,6 +5336,23 @@ function renderSettings() {
         </div>
       </div>
       <div class="fee-editor">
+        <div class="fee-editor-title">Stop giornaliero</div>
+        <div class="field-row">
+          <div class="field-col">
+            <span class="field-label">Perdita max R</span>
+            <input class="input" type="number" step="0.1" min="0" inputmode="decimal" placeholder="2"
+                   value="${((state.config.daily_loss||{})[a.id]||{}).maxR ?? ''}" data-dl-r="${a.id}">
+          </div>
+          <div class="field-col">
+            <span class="field-label">Perdita max $</span>
+            <input class="input" type="number" step="1" min="0" inputmode="decimal" placeholder="nessuno"
+                   value="${((state.config.daily_loss||{})[a.id]||{}).maxUSD ?? ''}" data-dl-usd="${a.id}">
+          </div>
+        </div>
+        <div class="hint">Quando la somma di oggi scende sotto uno dei due, l'app te lo dice. Scatta il primo che viene raggiunto; il campo $ può restare vuoto. Vuoto in R = 2R. Avvisa soltanto: il trade si registra comunque.</div>
+      </div>
+
+      <div class="fee-editor">
         <div class="fee-editor-title">Fee pagate all'exchange${(() => {
           const f = feesForAccount(a.id);
           return f ? ` · totale <b>$${f.totale.toFixed(2)}</b>` : '';
@@ -5297,6 +5417,27 @@ function renderSettings() {
     await saveConfig();
     render();
   };
+  // Stop giornaliero: scrive in config.daily_loss[accId]
+  const scriviStop = async (accId, campo, valore) => {
+    state.config.daily_loss = state.config.daily_loss || {};
+    const cur = state.config.daily_loss[accId] || {};
+    const next = { ...cur, [campo]: valore };
+    const vuoto = (next.maxR === '' || next.maxR == null)
+      && (next.maxUSD === '' || next.maxUSD == null);
+    if (vuoto) delete state.config.daily_loss[accId];
+    else state.config.daily_loss[accId] = next;
+    await saveConfig();
+    render();
+  };
+  accBox.querySelectorAll('[data-dl-r]').forEach(inp => {
+    inp.onchange = () => scriviStop(inp.dataset.dlR, 'maxR',
+      inp.value === '' ? '' : parseFloat(inp.value) || '');
+  });
+  accBox.querySelectorAll('[data-dl-usd]').forEach(inp => {
+    inp.onchange = () => scriviStop(inp.dataset.dlUsd, 'maxUSD',
+      inp.value === '' ? '' : parseFloat(inp.value) || '');
+  });
+
   accBox.querySelectorAll('[data-fee-comm]').forEach(inp => {
     inp.onchange = () => scriviFee(inp.dataset.feeComm, 'commissioni',
       inp.value === '' ? '' : parseFloat(inp.value) || 0);
