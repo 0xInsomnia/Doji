@@ -1920,6 +1920,10 @@ function makeEmptyForm() {
     tags: [],
     note: '',
     trade_date: '', // valore datetime-local (ora locale, precisione al minuto)
+    // Acceso solo quando l'utente tocca un campo che cambia i soldi (esito,
+    // R, rischio, risultato $, capitale custom). In MODIFICA decide se il
+    // P&L salvato va ricalcolato o lasciato com'è.
+    money_touched: false,
   };
 }
 
@@ -2491,14 +2495,10 @@ function sanitizeTrade(t) {
   if (t.risk_amount != null && !Number.isFinite(t.risk_amount)) t.risk_amount = null;
   if (t.capital_used != null && !Number.isFinite(t.capital_used)) t.capital_used = null;
   if (!Number.isFinite(t.rr_actual)) t.rr_actual = isClosed(t) ? 0 : null;
-  // I trade salvati inserendo il risultato in $ hanno già il dato vero dentro
-  // risk_amount: fissalo in pnl_dollar. Il valore non cambia di un centesimo,
-  // ma da qui in poi è un fatto immutabile invece di un prodotto ricalcolato
-  // ogni volta — così modificare il capitale del conto non riscrive il passato.
-  if (t.pnl_dollar == null && t.risk_amount != null && Number.isFinite(t.rr_actual)) {
-    const p = t.rr_actual * t.risk_amount;
-    if (Number.isFinite(p)) t.pnl_dollar = p;
-  }
+  // Nessuna migrazione: un trade che ha solo risk_amount resta com'è e il suo
+  // P&L lo calcola tradePnl (R × risk_amount). Prima qui si copiava quel
+  // prodotto dentro pnl_dollar, e renumberTrades lo scriveva su disco al primo
+  // salvataggio: una modifica automatica ai trade salvati, ora rimossa.
   return t;
 }
 
@@ -2574,27 +2574,40 @@ function capitalAtTrade(trade, sortedTrades, acc) {
   for (const ev of accountTimeline(sortedTrades, trade.account_id)) {
     if (ev.trade && ev.trade.id === trade.id) break; // arrivato a questo trade
     if (ev.adj) { cap += ev.adj.amount; continue; }
-    cap += pnlWithBase(ev.trade, cap, acc);
+    cap += tradePnl(ev.trade, acc, cap);
   }
   return cap;
 }
 
+// Il trade porta un P&L in dollari salvato (un numero vero, non null/NaN)?
+function hasPnlDollar(t) {
+  return typeof t.pnl_dollar === 'number' && Number.isFinite(t.pnl_dollar);
+}
+
 // ── UNICA definizione del P&L in dollari di un trade ──
+// Ogni punto dell'app che mostra o somma i $ di un trade passa da qui:
+// capitale, Stats, equity curve, dettaglio, Home, Mese, stop giornaliero.
 // Ordine di priorità:
-//  1. pnl_dollar — il risultato che hai scritto tu. È un FATTO: non si
-//     ricalcola mai, non dipende dal capitale del conto né dalle impostazioni.
-//     Con questo il totale coincide al centesimo con l'exchange.
+//  1. pnl_dollar — il risultato salvato sul trade. Si restituisce così com'è:
+//     non si ricalcola e non dipende dal capitale né dalle impostazioni.
 //  2. risk_amount — rischio in $ noto: P&L = R × rischio.
-//  3. stima da rischio % sul capitale al momento del trade. È un MODELLO:
-//     assume che tu abbia rischiato esattamente quella percentuale, quindi
-//     può scostarsi dalla realtà (size arrotondata, riempimenti parziali).
-// `capBefore` è il capitale prima di questo trade, già calcolato dal
-// chiamante: serve solo al caso 3 ed evita una ricorsione.
-function pnlWithBase(t, capBefore, acc) {
-  if (t.pnl_dollar != null && Number.isFinite(t.pnl_dollar)) return t.pnl_dollar;
+//  3. stima da rischio %: R × rischio% × base. È un MODELLO, quindi può
+//     scostarsi dal risultato reale.
+// `base` è il capitale ricostruito al momento del trade, calcolato dal
+// chiamante (serve solo al caso 3 ed evita una ricorsione); se il trade ha
+// un capitale custom (capital_used) vince quello.
+function tradePnl(t, acc, base) {
+  if (hasPnlDollar(t)) return t.pnl_dollar;
   if (t.risk_amount != null) return t.rr_actual * t.risk_amount;
-  const base = t.capital_used != null ? t.capital_used : capBefore;
-  return t.rr_actual * (t.risk_pct || acc.risk_pct) / 100 * base;
+  const b = t.capital_used != null ? t.capital_used : base;
+  return t.rr_actual * (t.risk_pct || acc.risk_pct) / 100 * b;
+}
+
+// Serve il capitale ricostruito per calcolare i $ di questo trade?
+// Solo per le stime pure: chi ha pnl_dollar, risk_amount o un capitale
+// custom ne fa a meno (e si evita un ricalcolo costoso dello storico).
+function needsCapitalBase(t) {
+  return !hasPnlDollar(t) && t.risk_amount == null && t.capital_used == null;
 }
 
 // ── Fee pagate all'exchange ──
@@ -2622,9 +2635,13 @@ function needsCompletion(t) {
   return !!t.imported_from && !t.setup;
 }
 
-// Il P&L si basa su un dato inserito a mano (non su una stima)?
+// Il P&L si basa su un dato reale (non su una stima)?
+// Un pnl_dollar salvato vale come reale, a meno che sia stato CALCOLATO dal
+// rischio % al momento del salvataggio (pnl_estimated): quello è un numero
+// fissato, ma resta una stima, e l'etichetta "stimato" deve continuare a dirlo.
 function hasRealPnl(t) {
-  return (t.pnl_dollar != null && Number.isFinite(t.pnl_dollar)) || t.risk_amount != null;
+  if (hasPnlDollar(t)) return !t.pnl_estimated;
+  return t.risk_amount != null;
 }
 
 // Ricava il P&L in dollari da quello che è stato scritto nel form.
@@ -2640,6 +2657,31 @@ function pnlDollarFromForm(f, rr_actual) {
   return rr_actual < 0 ? -v : v;
 }
 
+// Fissa pnl_dollar su un trade appena registrato, o di cui hai cambiato i
+// soldi. Da qui in poi il suo P&L non dipende più dal capitale del conto.
+// Il trade deve essere GIÀ in state.trades: serve a ricostruire il capitale
+// al momento del trade.
+//  - typed (importo scritto a mano): è il dato reale, si salva così.
+//  - null: si fissa il $ calcolato dal form, R × rischio $ (lo stesso numero
+//    che Doji mostrerebbe adesso), e lo si marca pnl_estimated: è fissato,
+//    ma resta una stima, e l'etichetta "stimato" deve continuare a dirlo.
+function freezeTradePnl(t, typed) {
+  delete t.pnl_estimated;
+  if (typed != null && Number.isFinite(typed)) {
+    t.pnl_dollar = typed;
+    return;
+  }
+  // La stima si rifà da zero, non dal valore che c'era prima
+  delete t.pnl_dollar;
+  const acc = state.config.accounts.find(a => a.id === t.account_id) || currentAccount();
+  const sorted = state.trades.filter(x => x.account_id === t.account_id).sort(chronoCompare);
+  const v = tradePnlDollar(t, sorted, acc);
+  if (Number.isFinite(v)) {
+    t.pnl_dollar = Math.round(v * 100) / 100;
+    t.pnl_estimated = true;
+  }
+}
+
 // Capitale corrente totale dell'account (= iniziale + tutti i P&L + tutte le rettifiche)
 function currentCapital(accId) {
   const acc = state.config.accounts.find(a => a.id === accId) || currentAccount();
@@ -2649,7 +2691,7 @@ function currentCapital(accId) {
   let cap = acc.capital;
   accountTimeline(trades, accId).forEach(ev => {
     if (ev.adj) { cap += ev.adj.amount; return; }
-    cap += pnlWithBase(ev.trade, cap, acc);
+    cap += tradePnl(ev.trade, acc, cap);
   });
   return cap;
 }
@@ -2771,7 +2813,7 @@ async function completeDraft() {
     draft.risk_amount = f.risk_amount === '' ? null : parseFloat(f.risk_amount);
     draft.capital_used = f.capital_used === '' ? null : parseFloat(f.capital_used);
   }
-  draft.pnl_dollar = pnlDollarFromForm(f, rr_actual);
+  const typedPnl = pnlDollarFromForm(f, rr_actual);
   draft.tags = [...f.tags];
   draft.note = f.note.trim();
   draft.status = 'closed';
@@ -2779,9 +2821,11 @@ async function completeDraft() {
   if (planChanged) { draft.plan_edited_at_close = true; stampEdit(draft); }
 
   try {
-    // Passa dalle bozze ai trade veri: da qui entra nelle statistiche
+    // Passa dalle bozze ai trade veri: da qui entra nelle statistiche.
+    // Una volta nella lista si fissa il P&L, come per ogni trade nuovo.
     state.drafts = state.drafts.filter(t => t.id !== draft.id);
     state.trades.push(draft);
+    freezeTradePnl(draft, typedPnl);
     await dbPut(TRADES_STORE, draft);
     await renumberTrades();
     state.completingId = null;
@@ -2801,21 +2845,28 @@ async function addTrade() {
   if (state.formMode === 'draft' && !state.editingId) return saveDraft();
 
   const f = state.form;
+  // In MODIFICA, se non hai toccato nessun campo economico (esito, R, rischio,
+  // risultato $, capitale custom) i soldi del trade restano esattamente come
+  // sono: nessun ricalcolo e nessuna validazione su di loro. Così cambiare
+  // setup, contesto, timeframe, tag o nota non sposta mai il P&L salvato.
+  const keepMoney = !!state.editingId && !f.money_touched;
   const useDollar = f.last_edited === 'dollar' && f.result_dollar !== '' && f.outcome && f.outcome !== 'be';
-  const missing = [];
-  if (!f.rr_planned) missing.push('R/R pianificato');
-  if (f.outcome === null) missing.push('Esito');
-  if ((f.outcome === 'partial' || f.outcome === 'loss') && f.rr_actual === '') missing.push('R/R reale');
+  if (!keepMoney) {
+    const missing = [];
+    if (!f.rr_planned) missing.push('R/R pianificato');
+    if (f.outcome === null) missing.push('Esito');
+    if ((f.outcome === 'partial' || f.outcome === 'loss') && f.rr_actual === '') missing.push('R/R reale');
 
-  if (missing.length > 0) {
-    showToast('Compila: ' + missing.join(', '), 'error');
-    return;
-  }
-  // Un parziale o una perdita da 0R è un pareggio: va registrato come BE,
-  // altrimenti in modalità dollaro si finirebbe a dividere per zero
-  if ((f.outcome === 'partial' || f.outcome === 'loss') && parseFloat(f.rr_actual) === 0) {
-    showToast('R/R reale 0: per un pareggio usa BE', 'error');
-    return;
+    if (missing.length > 0) {
+      showToast('Compila: ' + missing.join(', '), 'error');
+      return;
+    }
+    // Un parziale o una perdita da 0R è un pareggio: va registrato come BE,
+    // altrimenti in modalità dollaro si finirebbe a dividere per zero
+    if ((f.outcome === 'partial' || f.outcome === 'loss') && parseFloat(f.rr_actual) === 0) {
+      showToast('R/R reale 0: per un pareggio usa BE', 'error');
+      return;
+    }
   }
 
   // Deriva rr_actual da outcome
@@ -2865,20 +2916,12 @@ async function addTrade() {
   if (state.editingId) {
     const existing = state.trades.find(t => t.id === state.editingId);
     if (existing) {
+      // Campi descrittivi: sempre aggiornati, non toccano i soldi
       existing.direction = f.direction;
       existing.asset = f.asset;
       existing.setup = f.setup;
       existing.context = f.context || null;
       existing.timeframe = f.timeframe || null;
-      existing.outcome = f.outcome;
-      existing.tp_respected = disc.tp_respected;
-      existing.sl_respected = disc.sl_respected;
-      existing.rr_planned = rrPlanned;
-      existing.rr_actual = rr_actual;
-      existing.risk_pct = parseFloat(f.risk_pct) || existing.risk_pct;
-      existing.risk_amount = finalRiskAmount;
-      existing.capital_used = finalCapitalUsed;
-      existing.pnl_dollar = finalPnlDollar;
       existing.tags = [...f.tags];
       existing.note = f.note.trim();
       // Data: aggiorna iso/ts SOLO se l'utente l'ha davvero cambiata
@@ -2886,6 +2929,19 @@ async function addTrade() {
       if (f.trade_date && toDatetimeLocalValue(new Date(existing.iso)) !== f.trade_date) {
         existing.iso = tradeDate.toISOString();
         existing.ts = tradeDate.toLocaleDateString('it-IT');
+      }
+      // Campi economici: riscritti SOLO se li hai toccati. In quel caso anche
+      // pnl_dollar si ricalcola (dopo la data, che decide il capitale al trade).
+      if (!keepMoney) {
+        existing.outcome = f.outcome;
+        existing.tp_respected = disc.tp_respected;
+        existing.sl_respected = disc.sl_respected;
+        existing.rr_planned = rrPlanned;
+        existing.rr_actual = rr_actual;
+        existing.risk_pct = parseFloat(f.risk_pct) || existing.risk_pct;
+        existing.risk_amount = finalRiskAmount;
+        existing.capital_used = finalCapitalUsed;
+        freezeTradePnl(existing, finalPnlDollar);
       }
       stampEdit(existing); // traccia il ritocco senza toccare iso/created_iso
       try {
@@ -2924,7 +2980,6 @@ async function addTrade() {
     risk_pct: parseFloat(f.risk_pct) || acc.risk_pct,
     risk_amount: finalRiskAmount,
     capital_used: finalCapitalUsed,
-    pnl_dollar: finalPnlDollar, // risultato reale in $: se c'è, comanda lui
     tags: [...f.tags],
     note: f.note.trim(),
     ts: tradeDate.toLocaleDateString('it-IT'),
@@ -2936,13 +2991,17 @@ async function addTrade() {
   };
 
   try {
-    await dbPut(TRADES_STORE, trade);
+    // Prima va nella lista (serve il capitale al trade), poi si fissa il P&L,
+    // poi si salva: ogni trade nuovo nasce con il suo pnl_dollar
     state.trades.push(trade);
+    freezeTradePnl(trade, finalPnlDollar);
+    await dbPut(TRADES_STORE, trade);
     await renumberTrades();
     resetForm();
     showToast('✓ Trade salvato', 'success');
     render();
   } catch (e) {
+    state.trades = state.trades.filter(x => x.id !== trade.id);
     showToast('Errore salvataggio', 'error');
     console.error(e);
   }
@@ -2975,9 +3034,11 @@ function startEdit(id) {
   // Se il trade porta un risultato in $ (o un rischio $ esplicito) fu salvato
   // dal lato dollari: ripresentalo così, altrimenti in modifica si perderebbe
   const hadDollar = hasRealPnl(t);
-  const resultDollar = t.pnl_dollar != null && Number.isFinite(t.pnl_dollar)
-    ? String(Math.abs(t.pnl_dollar))
-    : (t.risk_amount != null ? String(Math.abs(t.rr_actual * t.risk_amount)) : '');
+  // Nel campo va solo un importo REALE: una stima (anche se fissata in
+  // pnl_dollar) ci starebbe travestita da dato scritto a mano
+  const resultDollar = !hadDollar ? ''
+    : hasPnlDollar(t) ? String(Math.abs(t.pnl_dollar))
+    : String(Math.abs(t.rr_actual * t.risk_amount));
   const tradeDateVal = toDatetimeLocalValue(new Date(t.iso));
   state.form = {
     direction: t.direction,
@@ -2998,6 +3059,7 @@ function startEdit(id) {
     tags: [...(t.tags || [])],
     note: t.note || '',
     trade_date: tradeDateVal,
+    money_touched: false, // finché non tocchi i soldi, il P&L salvato non si tocca
   };
   // Popola UI
   document.getElementById('rr-planned').value = state.form.rr_planned;
@@ -3050,6 +3112,7 @@ function startComplete(id) {
     tags: [],
     note: '',
     trade_date: toDatetimeLocalValue(new Date(t.iso)),
+    money_touched: false,
   };
   document.getElementById('rr-planned').value = state.form.rr_planned;
   document.getElementById('rr-actual').value = '';
@@ -3427,24 +3490,18 @@ function equityCurveData(arr, includeAdjustments) {
   const acc = currentAccount();
   let eq = acc.capital;
   const points = [{ n: 0, eq }];
-  const sorted = [...arr].sort((a, b) => a.iso.localeCompare(b.iso));
+  const sorted = [...arr].sort(chronoCompare);
   const events = includeAdjustments
     ? accountTimeline(sorted, acc.id)
-    : sorted.map(t => ({ iso: t.iso, trade: t }));
+    : sorted.map(t => ({ iso: t.iso, id: t.id, trade: t }));
   events.forEach(ev => {
     if (ev.adj) {
       eq = eq + ev.adj.amount;
     } else {
-      const t = ev.trade;
-      let pnl;
-      if (t.risk_amount != null) {
-        pnl = t.rr_actual * t.risk_amount;
-      } else {
-        const base = t.capital_used != null ? t.capital_used : eq;
-        const risk = (t.risk_pct || acc.risk_pct) / 100;
-        pnl = t.rr_actual * risk * base;
-      }
-      eq = eq + pnl;
+      // Stessa definizione del capitale: sulla curva reale l'ultimo punto
+      // coincide con il capitale in testata. Per le stime la base è il punto
+      // corrente della curva (sulla curva filtrata resta ipotetica, come prima).
+      eq = eq + tradePnl(ev.trade, acc, eq);
     }
     points.push({ n: points.length, eq: parseFloat(eq.toFixed(2)) });
   });
@@ -3454,13 +3511,11 @@ function equityCurveData(arr, includeAdjustments) {
 // ============================================================
 //  CONSISTENZA MENSILE (scheda "Mese")
 // ============================================================
-// P&L $ di un singolo trade: stessa logica di calcStats/dettaglio.
-// Per i trade con risk_amount è esattamente il $ digitato; per i vecchi
-// trade in modalità % si ricostruisce dal capitale storico.
+// P&L $ di un singolo trade quando il chiamante non ha già il capitale in mano:
+// ricostruisce la base solo se serve davvero (stime pure), poi delega a tradePnl.
 function tradePnlDollar(t, sortedAccTrades, acc) {
-  // Il capitale precedente serve solo se il P&L va stimato: calcolalo alla pigra
-  if (hasRealPnl(t)) return pnlWithBase(t, 0, acc);
-  return pnlWithBase(t, capitalAtTrade(t, sortedAccTrades, acc), acc);
+  if (!needsCapitalBase(t)) return tradePnl(t, acc, 0);
+  return tradePnl(t, acc, capitalAtTrade(t, sortedAccTrades, acc));
 }
 
 function monthlyPeriod() {
@@ -4138,7 +4193,7 @@ function renderFixPnl() {
   let cap = acc.capital, stimato = 0;
   accountTimeline(tutti, acc.id).forEach(ev => {
     if (ev.adj) { cap += ev.adj.amount; return; }
-    const p = pnlWithBase(ev.trade, cap, acc);
+    const p = tradePnl(ev.trade, acc, cap);
     if (!hasRealPnl(ev.trade)) stimato += p;
     cap += p;
   });
@@ -4147,7 +4202,7 @@ function renderFixPnl() {
     Scrivi l'importo vero e diventa un dato fisso.`;
 
   list.innerHTML = arr.map(t => {
-    const assunto = pnlWithBase(t, capitalAtTrade(t, tutti, acc), acc);
+    const assunto = tradePnlDollar(t, tutti, acc);
     const segno = assunto > 0 ? 'val-pos' : assunto < 0 ? 'val-neg' : 'val-zero';
     const isBe = t.outcome === 'be';
     return `
@@ -4190,6 +4245,7 @@ async function salvaPnlReale(id) {
   if (!Number.isFinite(v)) { showToast('Importo non valido', 'error'); return; }
   // Il segno lo decide l'esito, non chi scrive: sul BE è sempre un costo
   t.pnl_dollar = (t.outcome === 'be' || t.rr_actual < 0) ? -v : v;
+  delete t.pnl_estimated; // ora è il risultato reale, non più una stima
   stampEdit(t);
   try {
     await dbPut(TRADES_STORE, t);
@@ -4621,18 +4677,17 @@ function renderDetail() {
 
   const sortedAccTrades = state.trades
     .filter(x => x.account_id === t.account_id)
-    .sort((a, b) => a.iso.localeCompare(b.iso));
+    .sort(chronoCompare);
+  // Capitale al trade: serve sia alla stima del P&L sia al riquadro del rischio
   const capAtTrade = t.capital_used != null ? t.capital_used : capitalAtTrade(t, sortedAccTrades, acc);
 
-  // Calcolo P&L $ di questo singolo trade
-  let pnlSingle;
-  if (t.risk_amount != null) {
-    pnlSingle = t.rr_actual * t.risk_amount;
-  } else {
-    const risk = (t.risk_pct || acc.risk_pct) / 100;
-    pnlSingle = t.rr_actual * risk * capAtTrade;
-  }
-  const pnlSign = pnlSingle >= 0 ? '+' : '';
+  // P&L $ di questo trade: stessa fonte del capitale e delle Stats.
+  // Prima qui c'era una formula propria che ignorava pnl_dollar: il dettaglio
+  // ricostruiva R × rischio e poteva mostrare tutt'altro numero (+3.38 invece
+  // di +46.24) pur con il capitale corretto.
+  const pnlSingle = tradePnl(t, acc, capAtTrade);
+  const pnlSign = pnlSingle > 0 ? '+' : pnlSingle < 0 ? '−' : '';
+  const pnlCls = pnlSingle > 0 ? 'val-pos' : pnlSingle < 0 ? 'val-neg' : 'val-zero';
 
   let riskedDisplay;
   if (t.risk_amount != null) {
@@ -4712,7 +4767,7 @@ function renderDetail() {
         </div>
         <div class="detail-grid-full">
           <div class="detail-field-label">P&amp;L $ di questo trade${hasRealPnl(t) ? '' : ' <button class="pnl-stimato pnl-stimato-btn" id="detail-fixpnl">stimato ›</button>'}</div>
-          <div class="detail-field-value big ${valCls}">${pnlSign}$${pnlSingle.toFixed(2)}</div>
+          <div class="detail-field-value big ${pnlCls}">${pnlSign}$${Math.abs(pnlSingle).toFixed(2)}</div>
           ${hasRealPnl(t) ? '' : '<div class="hint">Questo importo è calcolato da R × rischio %, non è il risultato reale che hai avuto. Tocca "stimato" per scrivere quello vero.</div>'}
         </div>
       </div>
@@ -5783,32 +5838,40 @@ function bindEvents() {
   document.getElementById('asset').onchange = e => { state.form.asset = e.target.value; };
 
   // RR planned, RR actual, Risk
-  document.getElementById('rr-planned').oninput = e => { state.form.rr_planned = e.target.value; syncRiskFields(); };
-  document.getElementById('rr-actual').oninput = e => { state.form.rr_actual = e.target.value; syncRiskFields(); };
-  document.getElementById('risk-pct').oninput = e => { state.form.risk_pct = e.target.value; state.form.last_edited = 'pct'; syncRiskFields(); };
+  // Ogni campo economico segna money_touched: in modifica è ciò che decide
+  // se il P&L salvato va ricalcolato (vedi addTrade)
+  document.getElementById('rr-planned').oninput = e => { state.form.rr_planned = e.target.value; state.form.money_touched = true; syncRiskFields(); };
+  document.getElementById('rr-actual').oninput = e => { state.form.rr_actual = e.target.value; state.form.money_touched = true; syncRiskFields(); };
+  document.getElementById('risk-pct').oninput = e => { state.form.risk_pct = e.target.value; state.form.last_edited = 'pct'; state.form.money_touched = true; syncRiskFields(); };
   // Risultato $ — guida il rischio % (e viceversa), aggiornamento reciproco in tempo reale
-  document.getElementById('result-dollar').oninput = e => { state.form.result_dollar = e.target.value; state.form.last_edited = 'dollar'; syncRiskFields(); };
+  document.getElementById('result-dollar').oninput = e => { state.form.result_dollar = e.target.value; state.form.last_edited = 'dollar'; state.form.money_touched = true; syncRiskFields(); };
 
-  // Outcome
+  // Outcome — cambia i soldi solo se l'esito cambia davvero
+  const setOutcome = (o) => {
+    if (state.form.outcome !== o) state.form.money_touched = true;
+    state.form.outcome = o;
+  };
   document.getElementById('out-win').onclick = () => {
-    state.form.outcome = 'win';
+    if (state.form.outcome === 'win') return render();
+    setOutcome('win');
     state.form.rr_actual = '';
     document.getElementById('rr-actual').value = '';
     render();
   };
   document.getElementById('out-be').onclick = () => {
-    state.form.outcome = 'be';
+    if (state.form.outcome === 'be') return render();
+    setOutcome('be');
     state.form.rr_actual = '';
     document.getElementById('rr-actual').value = '';
     render();
   };
   document.getElementById('out-partial').onclick = () => {
-    state.form.outcome = 'partial';
+    setOutcome('partial');
     render();
     setTimeout(() => document.getElementById('rr-actual').focus(), 50);
   };
   document.getElementById('out-loss').onclick = () => {
-    state.form.outcome = 'loss';
+    setOutcome('loss');
     render();
     setTimeout(() => document.getElementById('rr-actual').focus(), 50);
   };
@@ -5838,7 +5901,7 @@ function bindEvents() {
     document.getElementById('risk-amt-toggle').textContent = wasHidden ? '− nascondi capitale custom' : '+ usa un capitale diverso per questo trade';
     if (wasHidden) inp.focus();
   };
-  document.getElementById('risk-amt').oninput = e => { state.form.capital_used = e.target.value; };
+  document.getElementById('risk-amt').oninput = e => { state.form.capital_used = e.target.value; state.form.money_touched = true; };
 
   // Detail back (gestito via history, come il tasto indietro del telefono)
   document.getElementById('detail-back-btn').onclick = () => navBack();
