@@ -514,6 +514,67 @@ button { cursor: pointer; user-select: none; -webkit-user-select: none; border: 
   border: 1px dashed var(--text-muted); border-radius: 3px;
   padding: 1px 4px; margin-left: 6px; white-space: nowrap;
 }
+/* Trade arrivati da Aria: stessa forma del badge "importato", bordo pieno */
+.aria-badge {
+  font-family: var(--font-mono); font-size: 8.5px; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim);
+  border: 1px solid var(--text-dim); border-radius: 3px;
+  padding: 1px 4px; margin-left: 6px; white-space: nowrap;
+}
+.aria-badge-title { font-size: 9px; vertical-align: middle; margin-left: 9px; }
+
+/* Incolla da Aria. Avvisi e errori hanno colori FISSI (ambra e rosso):
+   servono a farsi notare anche nei temi monocromatici, e le tinte
+   semitrasparenti si leggono sia sul chiaro che sullo scuro. */
+.aria-open-btn { width: 100%; margin-top: 12px; }
+.aria-input {
+  display: block; width: 100%; min-height: 150px; resize: vertical;
+  font-family: var(--font-mono); font-size: 11px; line-height: 1.45;
+}
+.aria-actions { display: flex; gap: 8px; margin-top: 10px; }
+.aria-actions button { flex: 1; }
+.aria-msg {
+  margin: 12px 0; padding: 10px 12px; border-radius: var(--radius);
+  background: rgba(192, 57, 43, 0.10); border-left: 3px solid #C0392B;
+  font-size: 12px; color: var(--text); line-height: 1.45;
+}
+.aria-summary {
+  font-family: var(--font-mono); font-size: 10.5px; color: var(--text-dim);
+  margin: 14px 2px 8px; letter-spacing: 0.02em;
+}
+.aria-row {
+  background: var(--surface); border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card); padding: 10px 12px; margin-bottom: 8px;
+}
+.aria-row.is-error { border-left: 3px solid #C0392B; }
+.aria-row.is-skip, .aria-row.is-excluded { opacity: 0.55; }
+.aria-l1 { font-family: var(--font-mono); font-size: 10.5px; color: var(--text-dim); }
+.aria-l2 { font-size: 13px; color: var(--text); margin-top: 3px; }
+.aria-err, .aria-warn, .aria-skip {
+  margin-top: 7px; padding: 6px 9px; border-radius: var(--radius);
+  font-size: 11px; line-height: 1.45; color: var(--text);
+}
+.aria-err { background: rgba(192, 57, 43, 0.10); border-left: 2px solid #C0392B; }
+.aria-warn { background: rgba(234, 179, 8, 0.16); border-left: 2px solid #D4A017; }
+.aria-skip { background: var(--surface-alt); border-left: 2px solid var(--text-muted); color: var(--text-dim); }
+.aria-note { margin-top: 6px; font-size: 10.5px; color: var(--text-muted); font-style: italic; }
+.aria-check { display: flex; align-items: center; gap: 7px; margin-top: 5px; cursor: pointer; font-weight: 600; }
+/* La regola globale toglie l'aspetto nativo a TUTTI gli input: senza questo
+   la casella esisteva ma era invisibile, e non si capiva se fosse spuntata */
+.aria-check input[type="checkbox"] {
+  appearance: none; -webkit-appearance: none;
+  width: 18px; height: 18px; flex: 0 0 18px; margin: 0;
+  border: 1.5px solid var(--text-dim); border-radius: 4px;
+  background: var(--surface); position: relative; cursor: pointer;
+}
+.aria-check input[type="checkbox"]:checked { background: #D4A017; border-color: #D4A017; }
+.aria-check input[type="checkbox"]:checked::after {
+  content: ''; position: absolute; left: 5px; top: 1px; width: 5px; height: 10px;
+  border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg);
+}
+.aria-confirm { width: 100%; margin-top: 6px; }
+.aria-confirm:disabled { opacity: 0.45; cursor: default; }
+
 .filter-todo {
   flex: 0 0 auto; padding: 0 11px; cursor: pointer;
   background: var(--surface); color: var(--text-dim);
@@ -1325,6 +1386,29 @@ body[data-theme="sakura"] .account-tab { border-radius: 999px; }
       <button class="btn-primary" id="add-btn">+ Aggiungi trade</button>
     </div>
   </div>
+  <button class="btn-secondary aria-open-btn" id="aria-open-btn">📋 Incolla trade da Aria</button>
+</div>
+
+<!-- ============ INCOLLA TRADE DA ARIA ============ -->
+<!-- I trade incollati si AGGIUNGONO a quelli esistenti: niente viene
+     salvato finché non confermi l'anteprima. -->
+<div id="aria-view" class="hidden detail-view-wrap">
+  <div class="detail-header">
+    <button class="detail-back" id="aria-back-btn">← Indietro</button>
+    <div>
+      <div class="detail-title">Incolla da Aria</div>
+      <div class="detail-title-sub">si aggiungono ai tuoi trade, non li sostituiscono</div>
+    </div>
+  </div>
+  <div class="panel">
+    <textarea class="textarea aria-input" id="aria-input" spellcheck="false" autocapitalize="off" autocomplete="off"
+              placeholder="Incolla qui il messaggio di Aria con i trade. Il testo intorno al blocco JSON non è un problema."></textarea>
+    <div class="aria-actions">
+      <button class="btn-secondary" id="aria-paste-btn">Leggi dagli appunti</button>
+      <button class="btn-primary" id="aria-parse-btn">Analizza</button>
+    </div>
+  </div>
+  <div id="aria-preview"></div>
 </div>
 
 <!-- ================ HISTORY VIEW (Storico) ================ -->
@@ -1887,6 +1971,9 @@ const state = {
   // sto chiudendo una bozza esistente.
   formMode: 'draft',
   completingId: null, // id della bozza che sto completando
+  // Incolla da Aria: righe analizzate in attesa di conferma (null = niente
+  // analizzato), oppure il messaggio d'errore se il testo non è leggibile
+  aria: { rows: null, error: null },
   detailId: null,
   navStack: [],
   logLimit: 15,
@@ -3358,6 +3445,443 @@ function importData(file) {
   reader.readAsText(file);
 }
 
+// ============================================================
+//  INCOLLA TRADE DA ARIA
+//  Testo libero con dentro un blocco JSON
+//    { app:"tradelog", kind:"trades-add", version:1, trades:[...] }
+//  I trade si AGGIUNGONO: quelli esistenti non vengono mai cancellati né
+//  modificati (a parte la rinumerazione di n, come in ogni salvataggio).
+//  Niente viene salvato finché l'utente non conferma l'anteprima.
+// ============================================================
+
+const ARIA_OUTCOMES = ['win', 'be', 'partial', 'loss'];
+
+// Indice della graffa che chiude l'oggetto aperto in `start`, ignorando le
+// graffe dentro stringhe e commenti. -1 se il testo finisce prima.
+function ariaMatchBrace(text, start) {
+  let depth = 0, inStr = false, esc = false;
+  for (let i = start; i < text.length; i++) {
+    const c = text[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (c === '\\') esc = true;
+      else if (c === '"') inStr = false;
+      continue;
+    }
+    if (c === '"') { inStr = true; continue; }
+    if (c === '/' && text[i + 1] === '/') { const nl = text.indexOf('\n', i); if (nl < 0) return -1; i = nl; continue; }
+    if (c === '/' && text[i + 1] === '*') { const e = text.indexOf('*/', i + 2); if (e < 0) return -1; i = e + 1; continue; }
+    if (c === '{') depth++;
+    else if (c === '}') { depth--; if (depth === 0) return i; }
+  }
+  return -1;
+}
+
+// JSON.parse, con una seconda possibilità più tollerante: commenti // e
+// /* */ fuori dalle stringhe e virgole finali, che capitano quando un blocco
+// viene ricopiato da una spiegazione. null se non è leggibile.
+function ariaParseLoose(chunk) {
+  try { return JSON.parse(chunk); } catch (e) { /* riprova sotto */ }
+  let out = '', inStr = false, esc = false;
+  for (let i = 0; i < chunk.length; i++) {
+    const c = chunk[i];
+    if (inStr) {
+      out += c;
+      if (esc) esc = false;
+      else if (c === '\\') esc = true;
+      else if (c === '"') inStr = false;
+      continue;
+    }
+    if (c === '"') { inStr = true; out += c; continue; }
+    if (c === '/' && chunk[i + 1] === '/') { const nl = chunk.indexOf('\n', i); i = nl < 0 ? chunk.length : nl - 1; continue; }
+    if (c === '/' && chunk[i + 1] === '*') { const e = chunk.indexOf('*/', i + 2); i = e < 0 ? chunk.length : e + 1; continue; }
+    out += c;
+  }
+  out = out.replace(/,\s*([}\]])/g, '$1');
+  try { return JSON.parse(out); } catch (e) { return null; }
+}
+
+// Primo oggetto JSON nel testo con app === "tradelog" e kind === "trades-add".
+// Il testo intorno (chat, ``` ecc.) viene ignorato. Se al primo giro non trova
+// nulla riprova normalizzando virgolette tipografiche e spazi non separabili,
+// che il copia-incolla dal telefono a volte introduce.
+function extractAriaPayload(text) {
+  const tentativi = [text, text.replace(/[“”„‟]/g, '"').replace(/ /g, ' ')];
+  for (const src of tentativi) {
+    for (let i = 0; i < src.length; i++) {
+      if (src[i] !== '{') continue;
+      const end = ariaMatchBrace(src, i);
+      if (end < 0) continue;
+      const obj = ariaParseLoose(src.slice(i, end + 1));
+      if (obj && typeof obj === 'object' && obj.app === 'tradelog' && obj.kind === 'trades-add') return obj;
+    }
+  }
+  return null;
+}
+
+// Numero da un valore che può arrivare come numero o come stringa ("1,5" ok)
+function ariaNum(v) {
+  if (typeof v === 'number') return v;
+  if (typeof v === 'string' && v.trim() !== '') return Number(v.trim().replace(',', '.'));
+  return NaN;
+}
+
+// P&L in $ dichiarato da un trade in arrivo (null se non ne porta uno)
+function ariaIncomingUsd(t) {
+  if (hasPnlDollar(t)) return t.pnl_dollar;
+  if (t.risk_amount != null && Number.isFinite(t.risk_amount) && Number.isFinite(t.rr_actual)) return t.rr_actual * t.risk_amount;
+  return null;
+}
+
+// Valida e normalizza i trade del blocco, SENZA salvare nulla.
+// Ogni riga: status 'ok' | 'error' | 'skip' (id già presente), più errori,
+// valori nuovi per le liste e un eventuale possibile doppione.
+function analyzeAriaTrades(list) {
+  const cfg = state.config;
+  const accById = Object.fromEntries(cfg.accounts.map(a => [a.id, a]));
+  // Valori già noti, indicizzati senza maiuscole e spazi ai bordi: così
+  // "crv/usdt" o "pullback in trend" si riconoscono come la voce che hai già,
+  // invece di diventare un doppione che spezza i breakdown delle Stats.
+  const indice = arr => new Map((arr || []).map(v => [String(v).trim().toLowerCase(), v]));
+  const known = {
+    assets: indice(cfg.assets),
+    setups: indice(cfg.setups),
+    contexts: indice(cfg.contexts),
+    timeframes: indice(cfg.timeframes),
+    tags: indice([...(cfg.tags || []), ...(cfg.error_tags || [])]),
+  };
+  const usedIds = new Set([...state.trades, ...state.drafts].map(t => t.id));
+  const seenIds = new Set();
+  const now = Date.now();
+  const rows = [];
+
+  list.forEach((raw, idx) => {
+    const row = { idx, trade: null, errors: [], notes: [], newValues: [],
+      addToLists: true, dupId: false, dupOf: null, exclude: false, status: 'ok' };
+    rows.push(row);
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      row.errors.push('non è un trade (manca l\'oggetto JSON)');
+      row.status = 'error';
+      return;
+    }
+    // Copia profonda: si portano dietro anche i campi che Doji non conosce
+    const t = JSON.parse(JSON.stringify(raw));
+    row.trade = t;
+    const err = m => row.errors.push(m);
+
+    // id: se manca lo assegna Doji; se c'è già, il trade si salta
+    if (t.id === undefined || t.id === null || t.id === '') {
+      let nid = now + idx;
+      while (usedIds.has(nid) || seenIds.has(nid)) nid++;
+      t.id = nid;
+    } else {
+      const n = ariaNum(t.id);
+      if (!Number.isFinite(n)) err(`id non valido (${t.id})`);
+      else t.id = n;
+    }
+    if (Number.isFinite(t.id)) {
+      if (usedIds.has(t.id)) row.dupId = 'presente';
+      else if (seenIds.has(t.id)) row.dupId = 'ripetuto';
+      seenIds.add(t.id);
+    }
+
+    const acc = accById[t.account_id];
+    if (!acc) err(`conto "${t.account_id ?? '—'}" inesistente`);
+
+    const dir = String(t.direction ?? '').toLowerCase();
+    if (dir !== 'long' && dir !== 'short') err(`direzione non valida (${t.direction ?? '—'})`);
+    else t.direction = dir;
+
+    if (typeof t.asset !== 'string' || !t.asset.trim()) err('coppia (asset) mancante');
+
+    const o = String(t.outcome ?? '').toLowerCase();
+    const okOutcome = ARIA_OUTCOMES.includes(o);
+    if (!okOutcome) err(`esito non valido (${t.outcome ?? '—'}): deve essere win, be, partial o loss`);
+    else t.outcome = o;
+
+    const rp = ariaNum(t.rr_planned);
+    if (!(rp > 0)) err('R/R pianificato mancante o non positivo');
+    else t.rr_planned = rp;
+    const ra = ariaNum(t.rr_actual);
+    if (!Number.isFinite(ra)) err('R reale (rr_actual) mancante');
+    else t.rr_actual = ra;
+
+    // Coerenza esito ↔ R: è l'errore più probabile in un blocco scritto a mano
+    if (okOutcome && Number.isFinite(ra) && rp > 0) {
+      if (o === 'win' && Math.abs(ra - rp) > 0.001) err(`WIN ma R reale ${ra} diverso dal pianificato ${rp}`);
+      if (o === 'be' && ra !== 0) err(`BE ma R reale ${ra}: deve essere 0`);
+      if (o === 'loss' && !(ra < 0)) err(`LOSS ma R reale ${ra}: deve essere negativo`);
+      if (o === 'partial' && !(ra > 0)) err(`PARTIAL ma R reale ${ra}: deve essere positivo`);
+    }
+
+    if (t.pnl_dollar !== undefined && t.pnl_dollar !== null && t.pnl_dollar !== '') {
+      const p = ariaNum(t.pnl_dollar);
+      if (!Number.isFinite(p)) err(`pnl_dollar non valido (${t.pnl_dollar})`);
+      else {
+        t.pnl_dollar = p;
+        if (okOutcome && o !== 'be' && Number.isFinite(ra)) {
+          if ((ra > 0 && !(p > 0)) || (ra < 0 && !(p < 0))) {
+            err(`$ ${fmtUSD(p)} col segno opposto all'R (${fmtR(ra)})`);
+          }
+        }
+      }
+    }
+    for (const [campo, minimo] of [['risk_amount', 0], ['capital_used', 0]]) {
+      if (t[campo] === undefined || t[campo] === null || t[campo] === '') continue;
+      const v = ariaNum(t[campo]);
+      if (!(v > minimo)) err(`${campo} non valido (${t[campo]})`);
+      else t[campo] = v;
+    }
+    if (t.risk_pct !== undefined && t.risk_pct !== null && t.risk_pct !== '') {
+      const v = ariaNum(t.risk_pct);
+      if (!(v >= 0)) err(`risk_pct non valido (${t.risk_pct})`);
+      else t.risk_pct = v;
+    }
+
+    // Data di chiusura: leggibile e non nel futuro (un minuto di tolleranza
+    // per l'orologio). Normalizzata in ISO UTC, come tutti gli altri trade.
+    const d = typeof t.iso === 'string' ? new Date(t.iso) : null;
+    if (!d || isNaN(d.getTime())) err('data (iso) mancante o non leggibile');
+    else if (d.getTime() > now + 60000) err(`data nel futuro (${d.toLocaleString('it-IT')})`);
+    else t.iso = d.toISOString();
+
+    // Campi descrittivi: valori mancanti ai default di Doji
+    if (t.setup === undefined || t.setup === null) t.setup = '';
+    if (!t.context) t.context = null;
+    if (!t.timeframe) t.timeframe = null;
+    if (t.tags === undefined || t.tags === null) t.tags = [];
+    else if (typeof t.tags === 'string') t.tags = [t.tags];
+    else if (!Array.isArray(t.tags)) err('tags non è una lista');
+    else t.tags = t.tags.map(String);
+    if (t.note === undefined || t.note === null) t.note = '';
+    else t.note = String(t.note);
+
+    // Valori delle liste. Se esistono già in un'altra grafia si allineano a
+    // quella delle tue liste (e l'anteprima lo dice); se non esistono proprio
+    // diventano un avviso, e si possono aggiungere alle liste.
+    const allinea = (list, label, value) => {
+      if (typeof value !== 'string' || !value.trim()) return value;
+      const tua = known[list].get(value.trim().toLowerCase());
+      if (tua !== undefined) {
+        if (tua !== value) row.notes.push(`${label} "${value}" scritto come nelle tue liste: "${tua}"`);
+        return tua;
+      }
+      if (!row.newValues.some(v => v.list === list && v.value === value)) row.newValues.push({ list, label, value });
+      return value;
+    };
+    t.asset = allinea('assets', 'coppia', t.asset);
+    t.setup = allinea('setups', 'setup', t.setup);
+    t.context = allinea('contexts', 'contesto', t.context);
+    t.timeframe = allinea('timeframes', 'timeframe', t.timeframe);
+    if (Array.isArray(t.tags)) t.tags = t.tags.map(tg => allinea('tags', 'tag', tg));
+
+    if (!row.errors.length && ariaIncomingUsd(t) === null) {
+      row.notes.push('nessun importo in $: il P&L sarà stimato dal rischio %');
+    }
+    // Un id già presente vince su tutto: quel trade in Doji c'è già
+    row.status = row.dupId ? 'skip' : row.errors.length ? 'error' : 'ok';
+  });
+
+  // Possibili doppioni: stesso conto, coppia, direzione e giorno con lo stesso
+  // $ (±0.01), contro i trade già salvati e contro le righe precedenti del
+  // blocco. Di default NON si importano.
+  const sortedByAcc = {};
+  const sortedFor = id => (sortedByAcc[id] = sortedByAcc[id]
+    || state.trades.filter(x => x.account_id === id).sort(chronoCompare));
+  const okRows = rows.filter(r => r.status === 'ok');
+  okRows.forEach((r, i) => {
+    const t = r.trade;
+    const usd = ariaIncomingUsd(t);
+    if (usd === null) return;
+    const giorno = localDayKey(new Date(t.iso));
+    const stessoTrade = (x) => x.account_id === t.account_id && x.asset === t.asset
+      && x.direction === t.direction && x.iso && localDayKey(new Date(x.iso)) === giorno;
+    const acc = accById[t.account_id];
+    const sorted = sortedFor(t.account_id);
+    const gia = sorted.find(e => stessoTrade(e) && Math.abs(tradePnlDollar(e, sorted, acc) - usd) <= 0.01);
+    if (gia) { r.dupOf = `#${gia.n} del ${gia.ts}`; r.exclude = true; return; }
+    const prima = okRows.slice(0, i).find(p => {
+      const pu = ariaIncomingUsd(p.trade);
+      return pu !== null && stessoTrade(p.trade) && Math.abs(pu - usd) <= 0.01;
+    });
+    if (prima) { r.dupOf = `la riga ${prima.idx + 1} di questo blocco`; r.exclude = true; }
+  });
+  return rows;
+}
+
+function ariaAnalyze() {
+  const text = document.getElementById('aria-input').value;
+  state.aria = { rows: null, error: null };
+  if (!text.trim()) {
+    state.aria.error = 'La casella è vuota: incolla prima il messaggio di Aria.';
+  } else {
+    const payload = extractAriaPayload(text);
+    if (!payload) {
+      state.aria.error = 'Non trovo un blocco di trade di Aria: serve un JSON con "app": "tradelog" e "kind": "trades-add".';
+    } else if (!Array.isArray(payload.trades) || payload.trades.length === 0) {
+      state.aria.error = 'Il blocco di Aria non contiene trade.';
+    } else {
+      state.aria.rows = analyzeAriaTrades(payload.trades);
+    }
+  }
+  renderAriaPreview();
+}
+
+async function ariaPasteFromClipboard() {
+  const box = document.getElementById('aria-input');
+  try {
+    if (!navigator.clipboard || !navigator.clipboard.readText) throw new Error('API non disponibile');
+    const txt = await navigator.clipboard.readText();
+    if (!txt) { showToast('Gli appunti sono vuoti', 'error'); return; }
+    box.value = txt;
+    ariaAnalyze();
+  } catch (e) {
+    // Permesso negato o browser che non lo consente: si incolla a mano
+    showToast('Non posso leggere gli appunti: incolla a mano nella casella', 'error');
+    box.focus();
+  }
+}
+
+function fmtAriaWhen(d) {
+  const p = n => String(n).padStart(2, '0');
+  const anno = d.getFullYear() !== new Date().getFullYear() ? `/${d.getFullYear()}` : '';
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}${anno} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+function renderAriaPreview() {
+  const box = document.getElementById('aria-preview');
+  if (!box) return;
+  const a = state.aria;
+  if (a.error) { box.innerHTML = `<div class="aria-msg">${escapeHtml(a.error)}</div>`; return; }
+  if (!a.rows) { box.innerHTML = ''; return; }
+
+  const accName = id => (state.config.accounts.find(x => x.id === id) || {}).name || id || '—';
+  const daAggiungere = a.rows.filter(r => r.status === 'ok' && !r.exclude).length;
+  const nErr = a.rows.filter(r => r.status === 'error').length;
+  const nGia = a.rows.filter(r => r.status === 'skip').length;
+  const nDup = a.rows.filter(r => r.status === 'ok' && r.exclude).length;
+  const pezzi = [`${a.rows.length} trade nel blocco`];
+  if (nErr) pezzi.push(`${nErr} con errori`);
+  if (nGia) pezzi.push(`${nGia} già presenti`);
+  if (nDup) pezzi.push(`${nDup} possibili doppioni esclusi`);
+
+  const righe = a.rows.map(r => {
+    const t = r.trade || {};
+    const d = t.iso ? new Date(t.iso) : null;
+    const quando = d && !isNaN(d.getTime()) ? fmtAriaWhen(d) : 'data —';
+    const usd = ariaIncomingUsd(t);
+    const cls = r.status === 'error' ? 'is-error' : r.status === 'skip' ? 'is-skip' : r.exclude ? 'is-excluded' : '';
+    let extra = '';
+    if (r.errors.length) {
+      extra += `<div class="aria-err">✕ Non si importa: ${r.errors.map(escapeHtml).join(' · ')}</div>`;
+    }
+    if (r.status === 'skip') {
+      extra += `<div class="aria-skip">${r.dupId === 'ripetuto'
+        ? 'id ripetuto in questo blocco: saltato'
+        : `già presente (id ${escapeHtml(String(t.id))}): saltato`}</div>`;
+    }
+    if (r.status === 'ok' && r.newValues.length) {
+      const elenco = r.newValues.map(v => `${v.label} <b>${escapeHtml(v.value)}</b>`).join(', ');
+      extra += `<div class="aria-warn">Non nelle tue liste: ${elenco}
+        <label class="aria-check"><input type="checkbox" data-aria-lists="${r.idx}"${r.addToLists ? ' checked' : ''}> aggiungi alle liste</label></div>`;
+    }
+    if (r.status === 'ok' && r.dupOf) {
+      extra += `<div class="aria-warn">Possibile doppione di ${escapeHtml(r.dupOf)}: stesso conto, coppia, direzione, giorno e importo.
+        <label class="aria-check"><input type="checkbox" data-aria-excl="${r.idx}"${r.exclude ? ' checked' : ''}> non importare</label></div>`;
+    }
+    if (r.notes.length) extra += `<div class="aria-note">${r.notes.map(escapeHtml).join(' · ')}</div>`;
+    return `
+      <div class="aria-row ${cls}">
+        <div class="aria-l1">${quando} · ${escapeHtml(accName(t.account_id))} · ${escapeHtml(String(t.direction || '—').toUpperCase())} ${escapeHtml(t.asset || '—')}${t.source === 'aria' ? '<span class="aria-badge">Aria</span>' : ''}</div>
+        <div class="aria-l2">${escapeHtml(t.setup || '—')} · ${escapeHtml(String(t.outcome || '—').toUpperCase())} · ${Number.isFinite(t.rr_actual) ? fmtR(t.rr_actual) : '—'} · ${usd !== null ? fmtUSD(usd) : '$ —'}</div>
+        ${extra}
+      </div>`;
+  }).join('');
+
+  box.innerHTML = `
+    <div class="aria-summary">${pezzi.join(' · ')}</div>
+    ${righe}
+    <button class="btn-primary aria-confirm" id="aria-confirm"${daAggiungere ? '' : ' disabled'}>
+      ${daAggiungere ? `Aggiungi ${daAggiungere} trade` : 'Nessun trade da aggiungere'}
+    </button>`;
+
+  box.querySelectorAll('[data-aria-lists]').forEach(cb => {
+    cb.onchange = () => { a.rows[+cb.dataset.ariaLists].addToLists = cb.checked; };
+  });
+  box.querySelectorAll('[data-aria-excl]').forEach(cb => {
+    cb.onchange = () => { a.rows[+cb.dataset.ariaExcl].exclude = cb.checked; renderAriaPreview(); };
+  });
+  const conf = document.getElementById('aria-confirm');
+  if (conf) conf.onclick = confirmAriaImport;
+}
+
+async function confirmAriaImport() {
+  const scelte = (state.aria.rows || []).filter(r => r.status === 'ok' && !r.exclude);
+  // Ricontrollo gli id sullo stato di ADESSO: tra l'analisi e la conferma
+  // potresti aver salvato altro (o premuto due volte)
+  const usati = new Set([...state.trades, ...state.drafts].map(t => t.id));
+  const daSalvare = scelte.filter(r => !usati.has(r.trade.id));
+  if (!daSalvare.length) { showToast('Nessun trade da aggiungere', 'error'); return; }
+
+  const adesso = new Date().toISOString();
+  const nuovi = daSalvare.map(r => {
+    const t = { ...r.trade }; // tutti i campi arrivati, anche quelli sconosciuti
+    const d = new Date(t.iso);
+    const disc = deriveDiscipline(t.outcome, t.rr_actual);
+    t.n = 0;                      // lo assegna la rinumerazione
+    t.ts = d.toLocaleDateString('it-IT');
+    t.created_iso = adesso;
+    t.closed_iso = t.iso;
+    t.status = 'closed';
+    t.tp_respected = disc.tp_respected;
+    t.sl_respected = disc.sl_respected;
+    if (t.capital_used === undefined) t.capital_used = null;
+    if ((t.risk_amount === undefined || t.risk_amount === null) && hasPnlDollar(t) && t.rr_actual !== 0) {
+      t.risk_amount = Math.abs(t.pnl_dollar / t.rr_actual);
+    }
+    t.edits = [];
+    return t;
+  });
+
+  // Valori da aggiungere alle liste: solo dai trade che entrano davvero e
+  // solo se la casella "aggiungi alle liste" è rimasta spuntata
+  const aggiunte = {};
+  daSalvare.forEach(r => {
+    if (!r.addToLists) return;
+    r.newValues.forEach(v => {
+      const lista = state.config[v.list] || [];
+      aggiunte[v.list] = aggiunte[v.list] || [];
+      // Anche qui senza maiuscole: due righe con "ONDO/USDT" e "ondo/usdt"
+      // aggiungono una voce sola
+      const giaC = x => String(x).trim().toLowerCase() === v.value.trim().toLowerCase();
+      if (!lista.some(giaC) && !aggiunte[v.list].some(giaC)) aggiunte[v.list].push(v.value);
+    });
+  });
+
+  try {
+    state.trades.push(...nuovi);
+    await renumberTrades(); // n per conto in ordine di data + dbBulkPut
+  } catch (e) {
+    const ids = new Set(nuovi.map(t => t.id));
+    state.trades = state.trades.filter(t => !ids.has(t.id));
+    showToast('Errore salvataggio: nessun trade aggiunto', 'error');
+    console.error(e);
+    return;
+  }
+
+  // La config si tocca solo dopo che i trade sono al sicuro
+  const liste = Object.keys(aggiunte).filter(k => aggiunte[k].length);
+  if (liste.length) {
+    liste.forEach(k => { state.config[k] = [...(state.config[k] || []), ...aggiunte[k]]; });
+    try { await saveConfig(); } catch (e) { console.error('saveConfig aria', e); }
+  }
+
+  state.aria = { rows: null, error: null };
+  document.getElementById('aria-input').value = '';
+  showToast(`✓ ${nuovi.length} trade aggiunti`, 'success');
+  navOpen('history');
+}
+
 async function resetAll() {
   const sure = confirm('CANCELLARE TUTTO (trade e impostazioni)?\n\nQuesta azione è irreversibile. Esporta prima un backup se vuoi conservare i dati.');
   if (!sure) return;
@@ -3730,10 +4254,15 @@ function render() {
   document.getElementById('bulk-view').classList.toggle('hidden', state.view !== 'bulk');
   document.getElementById('fixpnl-view').classList.toggle('hidden', state.view !== 'fixpnl');
   if (state.view === 'fixpnl') renderFixPnl();
+  document.getElementById('aria-view').classList.toggle('hidden', state.view !== 'aria');
+  if (state.view === 'aria') renderAriaPreview();
+  // Il pulsante "Incolla da Aria" non ha senso mentre modifichi o chiudi un trade
+  document.getElementById('aria-open-btn').classList.toggle('hidden',
+    !!state.editingId || state.formMode === 'complete');
   // Sub-viste (dettaglio/gruppo/bulk): niente bottom nav, hanno il loro "indietro".
   // Impostazioni è una destinazione della bar ma non mostra le tab account.
   const isSub = state.view === 'detail' || state.view === 'group' || state.view === 'bulk'
-    || state.view === 'fixpnl';
+    || state.view === 'fixpnl' || state.view === 'aria';
   document.getElementById('bottom-nav').classList.toggle('hidden', isSub);
   // Home ha i suoi pulsanti account; Impostazioni è account-agnostica
   document.getElementById('account-tabs').classList.toggle('hidden', isSub || state.view === 'settings' || state.view === 'home');
@@ -4565,7 +5094,7 @@ function buildTradeRows(list, trades, detailFrom) {
       <div class="trade-asset">${escapeHtml(t.asset || '—')}</div>
       <div class="trade-setup">${escapeHtml(t.setup || '—')}${needsCompletion(t) ? '<span class="import-badge">importato</span>' : ''}</div>
       <div class="trade-rr ${valCls}">${valSign}${t.rr_actual}R</div>
-      <div class="trade-ts">${t.ts}</div>
+      <div class="trade-ts">${t.ts}${t.source === 'aria' ? '<span class="aria-badge">Aria</span>' : ''}</div>
       ${(t.tags && t.tags.length) ? `<div class="trade-tags">${t.tags.map(tg => `<span class="tag-pill">${escapeHtml(tg)}</span>`).join('')}</div>` : ''}
       ${t.note ? `<div class="trade-note">${escapeHtml(t.note)}</div>` : ''}
     `;
@@ -4705,7 +5234,8 @@ function renderDetail() {
   const outcomeMap = { win: 'WIN', be: 'BE', partial: 'PARZIALE', loss: 'LOSS' };
   const outcomeLabel = outcomeMap[outcomeKey] || '—';
 
-  document.getElementById('detail-title').textContent = `Trade #${t.n}`;
+  document.getElementById('detail-title').innerHTML = `Trade #${t.n}`
+    + (t.source === 'aria' ? '<span class="aria-badge aria-badge-title">Aria</span>' : '');
   document.getElementById('detail-title-sub').textContent = `${acc.name} · ${t.ts}`;
 
   const tagsHtml = (t.tags && t.tags.length)
@@ -5827,6 +6357,17 @@ function bindEvents() {
   document.getElementById('detail-back-btn').onclick = () => navBack();
   document.getElementById('group-back-btn').onclick = () => navBack();
   document.getElementById('fixpnl-back-btn').onclick = () => navBack();
+
+  // Incolla da Aria
+  document.getElementById('aria-open-btn').onclick = () => navOpen('aria');
+  document.getElementById('aria-back-btn').onclick = () => navBack();
+  document.getElementById('aria-paste-btn').onclick = () => ariaPasteFromClipboard();
+  document.getElementById('aria-parse-btn').onclick = () => ariaAnalyze();
+  // Il testo cambiato rende vecchia l'anteprima: meglio toglierla che
+  // confermare trade che non corrispondono più a quello che c'è scritto
+  document.getElementById('aria-input').oninput = () => {
+    if (state.aria.rows || state.aria.error) { state.aria = { rows: null, error: null }; renderAriaPreview(); }
+  };
   document.getElementById('open-bulk-btn').onclick = () => navOpen('bulk');
   document.getElementById('bulk-back-btn').onclick = () => navBack();
 
